@@ -198,3 +198,48 @@ EMAIL_USE_TLS = env('EMAIL_USE_TLS', cast=bool, default=True)
 EMAIL_HOST_USER = env('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
+
+
+# Logging Configuration
+
+LOG_DIR = BASE_DIR / "logs"
+# Ensure folder always exists
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+
+    "formatters": {
+        "standard": {
+            "format": (
+                "[{asctime}] [{levelname}] "
+                "[{pathname}:{lineno}] {message}"
+            ),
+            "style": "{",
+        },
+    },
+
+    "handlers": {
+        "system_file": {
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "level": "INFO",
+            "filename": LOG_DIR / "system.log",
+            "when": "D",
+            "interval": 1,
+            "backupCount": 5,
+            "encoding": "utf-8",
+            "delay": True,
+        },
+    },
+
+    "loggers": {
+        "system": {
+            "handlers": ["system_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
