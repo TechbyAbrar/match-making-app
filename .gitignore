@@ -1,0 +1,115 @@
+# ================================
+# Python
+# ================================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env
+.env.*
+.venv/
+venv/
+ENV/
+env/
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ================================
+# Django
+# ================================
+*.log
+local_settings.py
+
+# Django migrations cache
+**/migrations/__pycache__/
+
+# Media & static files (handled separately in prod)
+media/
+staticfiles/
+
+# SQLite (if used locally)
+db.sqlite3
+
+# ================================
+# Environment & Secrets
+# ================================
+.env
+.env.*
+.env.local
+.env.production
+.env.staging
+
+# ================================
+# Docker
+# ================================
+docker-compose.override.yml
+*.pid
+*.sock
+
+# Docker volumes (optional – uncomment if needed)
+# docker_data/
+
+# ================================
+# Redis
+# ================================
+dump.rdb
+
+# ================================
+# Node / Frontend
+# ================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+dist/
+build/
+
+# ================================
+# IDE / Editors
+# ================================
+.vscode/
+.idea/
+*.iml
+
+# ================================
+# OS Files
+# ================================
+.DS_Store
+Thumbs.db
+
+# ================================
+# Testing / Coverage
+# ================================
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.tox/
+
+# ================================
+# Logs
+# ================================
+logs/
+*.log
+
+# ================================
+# Temporary / Backup Files
+# ================================
+*.swp
+*.swo
+*~
+*.bak
+
+# ================================
+# Security
+# ================================
+*.pem
+*.key
+*.crt
