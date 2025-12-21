@@ -54,12 +54,12 @@ INSTALLED_APPS = [
 ]
 
 
-AUTH_USER_MODEL = "account.UserAuth"
+# AUTH_USER_MODEL = "account.UserAuth"
 
-AUTHENTICATION_BACKENDS = [
-    "account.backends.EmailPhoneUsernameBackend",
-    "django.contrib.auth.backends.ModelBackend",  # fallback
-]
+# AUTHENTICATION_BACKENDS = [
+#     "account.backends.EmailPhoneUsernameBackend",
+#     "django.contrib.auth.backends.ModelBackend",  # fallback
+# ]
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # CORS first
