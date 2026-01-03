@@ -113,3 +113,13 @@ logs/
 *.pem
 *.key
 *.crt
+
+
+# ===============================
+# Type checkers & linters
+# ===============================
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
