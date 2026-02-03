@@ -7,46 +7,47 @@ from .utils import generate_otp, get_otp_expiry, validate_image
 from multiselectfield import MultiSelectField
 from django.conf import settings
 
-
-class User(AbstractBaseUser, PermissionsMixin):
+class UserAuth(AbstractBaseUser, PermissionsMixin):
     class Meta:
         verbose_name = "User"
         verbose_name_plural = "Users"
         ordering = ["-created_at"]
     
     GENDER_CHOICES = [
-        ('man', 'Man'),
-        ('woman', 'Woman'),
-        ('non_binary', 'Non-binary'),
+        ('MALE', 'MALE'),
+        ('FEMALE', 'FEMALE'),
+        ('OTHER', 'OTHER'),
+    ]
+
+    BRINGS_CHOICES = [
+        ('LOVE', 'LOVE'),
+        ('FRIENDSHIP', 'FRIENDSHIP'),
+        ('NETWORKING', 'NETWORKING'),
+        ('NEURODIVERSE CONNECTION', 'NEURODIVERSE CONNECTION'),
+        ('ADVENTURE PARTNER', 'ADVENTURE PARTNER'),
     ]
     
-    GOAL_CHOICES = [
-        ('love', 'Love'),
-        ('friendship', 'Friendship'),
-        ('networking', 'Networking'),
-    ]
-    
-    LOOKING_FOR_CHOICES = [
-        ('A long-term relationship', 'A long-term relationship'),
-        ('A life partner', 'A life partner'),
-        ('Fun, casual dates', 'Fun, casual dates'),
-        ('intimaIntimacy, without commitmentcy', 'Intimacy, without commitment'),
-        ('Marriage', 'Marriage'),
-        ('Ethical non-monogamy', 'Ethical non-monogamy'),
-    ]
-    
-    HOBBIES_CHOICES = [
-        ('R&B', 'R&B'),
-        ('Gardening', 'Gardening'),
-        ('LGBTQ & Rights', 'LGBTQ & Rights'),
-        ('Vegetarian', 'Vegetarian'),
-        ('Dancing', 'Dancing'),
-        ('Dogs', 'Dogs'),
-        ('Museums & galleries', 'Museums & galleries'),
-        ('Wine', 'Wine'),
-        ('Writing', 'Writing'),
-        ('Yoga', 'Yoga'),
-        ('Baking', 'Baking'),
+    THAT_CHOICES = [
+        ('INTROVERT', 'INTROVERT'),
+        ('EXTROVERT', 'EXTROVERT'),
+        ('KOMBUCHA', 'KOMBUCHA'),
+        ('CHAMPAGNE', 'CHAMPAGNE'),
+        ('GAME OF THRONES', 'GAME OF THRONES'),
+        ('GILMORE GIRLS', 'GILMORE GIRLS'),
+        ('GUCCI', 'GUCCI'),
+        ('NIKE', 'NIKE'),
+        ('NIGHTCLUB', 'NIGHTCLUB'),
+        ('NIGHAT AT HOME', 'NIGHT AT HOME'),
+        ('INTUITION', 'INTUITION'),
+        ('LOGIC', 'LOGIC'),
+        ('BURGER', 'BURGER'),
+        ('SALAD', 'SALAD'),
+        ('MOUNTAIN CABIN', 'MOUNTAIN CABIN'),
+        ('BOUTIQUE HOTEL', 'BOUTIQUE HOTEL'),
+        ('SWEET', 'SWEET'),
+        ('SALTY', 'SALTY'),
+        ('DOG', 'DOG'),
+        ('CAT', 'CAT'),
     ]
 
     user_id = models.AutoField(primary_key=True)
@@ -68,7 +69,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True,
         validators=[validate_image],
     )
-    profile_pic_url = models.URLField(max_length=200, blank=True, null=True)
 
     otp = models.CharField(max_length=6, blank=True, null=True)
     otp_expired = models.DateTimeField(blank=True, null=True)
@@ -78,25 +78,26 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
     
-    bio = models.TextField(max_length=255, blank=True, null=True)
+
     gender = models.CharField(max_length=20, choices=GENDER_CHOICES, blank=True, null=True)
+    brings = MultiSelectField(max_length=50, choices=BRINGS_CHOICES, blank=True, null=True)
+    that = MultiSelectField(max_length=50, choices=THAT_CHOICES, blank=True, null=True)
     
-    goal = models.CharField(max_length=20, choices=GOAL_CHOICES, blank=True, null=True)
-    hoping_to_find = models.CharField(max_length=100, choices=GENDER_CHOICES, blank=True, null=True)
-    looking_for = MultiSelectField(max_length=50, choices=LOOKING_FOR_CHOICES, blank=True, null=True)
+    professional_field = models.JSONField(default=list, blank=True, null=True)
+    interests = models.JSONField(default=list, blank=True, null=True)
+    lifestyle = models.JSONField(default=list, blank=True, null=True)
+    about = models.TextField(max_length=500, blank=True, null=True)
+    hobies = models.JSONField(default=list, blank=True, null=True)
     
     height_feet = models.PositiveSmallIntegerField(default=0)
     height_inches = models.PositiveSmallIntegerField(default=0)
     
-    education = models.CharField(max_length=100, blank=True, null=True)
-    hobbies = MultiSelectField(max_length=50, choices=HOBBIES_CHOICES, blank=True, null=True)
     
     dob = models.DateField(blank=True, null=True)
-    age = models.PositiveIntegerField(blank=True, null=True)
     
-    country= models.CharField(max_length=100, blank=True, null=True)
-    state = models.CharField(max_length=100, blank=True, null=True)
-    location = models.CharField(max_length=100, blank=True, null=True)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    province = models.CharField(max_length=100, blank=True, null=True)
+    
     distance = models.PositiveIntegerField(blank=True, null=True)  # in miles/km
     
     
@@ -104,9 +105,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     subscription_expiry = models.DateTimeField(blank=True, null=True)
     
     is_online = models.BooleanField(default=False)
-
+    last_login = models.DateTimeField(blank=True, null=True)
+    
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    
 
     # Required by Django
     USERNAME_FIELD = "email"
@@ -140,6 +144,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     
 # global feed pop images for user profiles
+from django.contrib.auth import get_user_model
+User = get_user_model()
+
 class MakeYourProfilePop(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="pop_images")
     image = models.ImageField(

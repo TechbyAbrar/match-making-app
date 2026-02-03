@@ -135,36 +135,3 @@ def validate_google_token(id_token: str) -> Optional[Dict[str, Any]]:
 
 
 
-# ---------------------------
-# Response Utilities
-# ---------------------------
-def success_response(
-    message: str = "Success",
-    data: Optional[Mapping[str, Any]] = None,
-    status_code: int = 200,
-    meta: Optional[Mapping[str, Any]] = None,
-) -> Response:
-    """Build a standardized success API response."""
-    payload: dict[str, Any] = {"success": True, "message": message, "data": data or {}}
-    if meta:
-        payload["meta"] = meta
-
-    logger.info("API Success", extra={"log_message": message, "meta": meta})
-    return Response(payload, status=status_code)
-
-
-def error_response(
-    message: str = "Something went wrong",
-    errors: Optional[Mapping[str, Any]] = None,
-    status_code: int = 400,
-    code: Optional[str] = None,
-) -> Response:
-    """Build a standardized error API response."""
-    payload: dict[str, Any] = {"success": False, "message": message, "errors": errors or {}}
-    if code:
-        payload["code"] = code
-
-    logger.error(
-        "API Error", extra={"log_message": message, "errors": errors, "code": code}
-    )
-    return Response(payload, status=status_code)
