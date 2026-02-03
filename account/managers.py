@@ -1,7 +1,6 @@
 from django.contrib.auth.base_user import BaseUserManager
 from django.utils.translation import gettext_lazy as _
 
-
 class UserManager(BaseUserManager):
     def _create_user(self, email, password=None, **extra_fields):
         if not email:
@@ -14,9 +13,6 @@ class UserManager(BaseUserManager):
         return user
 
     def create_user(self, email, password=None, **extra_fields):
-        """
-        Create and return a regular user.
-        """
         extra_fields.setdefault('is_staff', False)
         extra_fields.setdefault('is_superuser', False)
         extra_fields.setdefault('is_verified', False)
@@ -24,9 +20,6 @@ class UserManager(BaseUserManager):
         return self._create_user(email, password, **extra_fields)
 
     def create_superuser(self, email, password=None, **extra_fields):
-        """
-        Create and return a superuser.
-        """
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('is_verified', True)
@@ -39,9 +32,6 @@ class UserManager(BaseUserManager):
         return self._create_user(email, password, **extra_fields)
 
     def create_staffuser(self, email, password=None, **extra_fields):
-        """
-        Create and return a staff user (not a superuser).
-        """
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', False)
         extra_fields.setdefault('is_verified', True)
