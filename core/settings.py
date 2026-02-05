@@ -251,3 +251,52 @@ LOGGING = {
         },
     },
 }
+
+
+# Redis for channel layers
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}
+
+# redis configuration
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",  # ✅ use django_redis backend
+        "LOCATION": "redis://127.0.0.1:6379/0",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
+
+
+from celery.schedules import crontab
+
+CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
+CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
+
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+
+CELERY_TIMEZONE = 'Asia/Dhaka'
+CELERY_ENABLE_UTC = False
+
+CELERY_BEAT_SCHEDULE = {
+    "cleanup_expired_stories_every_hour": {
+        "task": "mutual_system.tasks.cleanup_expired_stories",
+        "schedule": crontab(minute=0),
+    },
+    "sync_redis_view_counts_every_10_min": {
+        "task": "mutual_system.tasks.sync_redis_view_counts",
+        "schedule": crontab(minute="*/10"),
+    },
+}
+
+SITE_BASE_URL = env("SITE_BASE_URL", default="http://localhost:8000")

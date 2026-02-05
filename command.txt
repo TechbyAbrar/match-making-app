@@ -1,0 +1,24 @@
+# run celery worker and celery beat in different terminal
+
+source env/bin/activate
+celery -A core worker -l info
+
+source env/bin/activate
+celery -A core beat -l info
+
+
+# run django as asgi
+gunicorn core.asgi:application \
+  -k uvicorn.workers.UvicornWorker \
+  --workers 4 \
+  --bind 0.0.0.0:8000
+
+
+# run redis
+redis-server --port 6379
+
+#verify redis
+redis-cli ping
+
+
+# should return: PONG
