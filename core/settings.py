@@ -58,6 +58,8 @@ INSTALLED_APPS = [
     
     # local apps
     'account',
+    'privacy',
+    'mutual_system',
 ]
 
 

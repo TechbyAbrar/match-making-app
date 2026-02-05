@@ -6,6 +6,9 @@ from .managers import UserManager
 from .utils import generate_otp, get_otp_expiry, validate_image
 from multiselectfield import MultiSelectField
 from django.conf import settings
+from datetime import date
+
+
 
 class UserAuth(AbstractBaseUser, PermissionsMixin):
     class Meta:
@@ -25,6 +28,15 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
         ('NETWORKING', 'NETWORKING'),
         ('NEURODIVERSE CONNECTION', 'NEURODIVERSE CONNECTION'),
         ('ADVENTURE PARTNER', 'ADVENTURE PARTNER'),
+    ]
+    
+    LOOKING_FOR_CHOICES = [
+        ('A long-term relationship', 'A long-term relationship'),
+        ('A life partner', 'A life partner'),
+        ('Fun, casual dates', 'Fun, casual dates'),
+        ('intimaIntimacy, without commitmentcy', 'Intimacy, without commitment'),
+        ('Marriage', 'Marriage'),
+        ('Ethical non-monogamy', 'Ethical non-monogamy'),
     ]
     
     THAT_CHOICES = [
@@ -82,11 +94,12 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
     gender = models.CharField(max_length=20, choices=GENDER_CHOICES, blank=True, null=True)
     brings = MultiSelectField(max_length=50, choices=BRINGS_CHOICES, blank=True, null=True)
     that = MultiSelectField(max_length=50, choices=THAT_CHOICES, blank=True, null=True)
+    looking_for = MultiSelectField(max_length=50, choices=LOOKING_FOR_CHOICES, blank=True, null=True)
     
     professional_field = models.JSONField(default=list, blank=True, null=True)
     interests = models.JSONField(default=list, blank=True, null=True)
     lifestyle = models.JSONField(default=list, blank=True, null=True)
-    about = models.TextField(max_length=500, blank=True, null=True)
+    bio = models.TextField(max_length=500, blank=True, null=True)
     hobies = models.JSONField(default=list, blank=True, null=True)
     
     height_feet = models.PositiveSmallIntegerField(default=0)
@@ -97,6 +110,7 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
     
     city = models.CharField(max_length=100, blank=True, null=True)
     province = models.CharField(max_length=100, blank=True, null=True)
+    location = models.CharField(max_length=255, blank=True, null=True)
     
     distance = models.PositiveIntegerField(blank=True, null=True)  # in miles/km
     
@@ -137,6 +151,22 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
     def height_in_inches(self):
         return self.height_feet * 12 + self.height_inches
     
+    def get_age(self):
+        if not self.dob:
+            return None
+
+        today = date.today()
+        age = today.year - self.dob.year
+
+        if (today.month, today.day) < (self.dob.month, self.dob.day):
+            age -= 1
+
+        return age
+
+    @property
+    def age(self):
+        return self.get_age()
+    
     @property
     def profile_link(self):
         base = settings.SITE_BASE_URL.rstrip("/")
@@ -146,7 +176,6 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
 # global feed pop images for user profiles
 from django.contrib.auth import get_user_model
 User = get_user_model()
-
 class MakeYourProfilePop(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="pop_images")
     image = models.ImageField(

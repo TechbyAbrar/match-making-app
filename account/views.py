@@ -17,7 +17,6 @@ from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
-
 # Local
 from .serializers import (
     SignupSerialzier,
@@ -27,7 +26,7 @@ from .serializers import (
     ForgetPasswordSerializer,
     VerifyForgetPasswordOTPSerializer,
     ResetPasswordSerializer,
-    UserSerializer,
+    UserSerializer, UserProfileUpdateSerializer
 )
 from account.utils import generate_tokens_for_user
 
@@ -195,4 +194,158 @@ class ResetPasswordView(APIView):
                 "data": {},
             },
             status=status.HTTP_200_OK,
+        )
+
+
+# profile update
+
+class UserProfileUpdateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def patch(self, request):
+        user = request.user
+
+        serializer = UserProfileUpdateSerializer(
+            user,
+            data=request.data,
+            partial=True,
+            context={"request": request},
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            serializer.save()
+
+        return Response(
+            {   
+                "success": True,
+                "message": "Profile updated successfully",
+                "data": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+        
+# get user profile
+class UserProfileAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserSerializer(request.user, context={"request": request})
+        return Response({
+            'success': True,
+            'message': 'User profile fetched successfully',
+            "data": serializer.data}, status=status.HTTP_200_OK)
+        
+#delete profile
+class UserProfileHardDeleteAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        request.user.delete()
+        return Response({"success": True, "message": "Account permanently deleted."}, status=200)
+    
+    
+
+
+# pop image view
+from .serializers import MakeYourProfilePopSerializer
+from account.models import MakeYourProfilePop
+class PopImageListCreateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request):
+        images = MakeYourProfilePop.objects.filter(user=request.user)
+        serializer = MakeYourProfilePopSerializer(images, many=True)
+        return Response(
+            {   "success": True,
+                "message": "Pop images fetched successfully",
+                "data": serializer.data
+            },
+            status=status.HTTP_200_OK
+        )
+
+    def post(self, request):
+        images = request.FILES.getlist("image")  # multiple files
+        saved_images = []
+
+        if not images:
+            return Response(
+                {"success": False, "message": "No images provided"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if request.user.pop_images.count() + len(images) > 7:
+            return Response(
+                {"success": False, "message": "You can upload a maximum of 7 pop-up images."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        for img in images:
+            serializer = MakeYourProfilePopSerializer(
+                data={"image": img},
+                context={"request": request}
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save(user=request.user)
+            saved_images.append(serializer.data)
+
+        return Response(
+            {   "success": True,
+                "message": f"{len(saved_images)} pop images uploaded successfully",
+                "data": saved_images
+            },
+            status=status.HTTP_201_CREATED
+        )
+
+
+
+
+class PopImageRetrieveUpdateDeleteAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, pk, user):
+        return get_object_or_404(MakeYourProfilePop, pk=pk, user=user)
+
+    def get(self, request, pk):
+        image = self.get_object(pk, request.user)
+        serializer = MakeYourProfilePopSerializer(image)
+        return Response(
+            {   "success": True,
+                "message": "Pop image fetched successfully",
+                "data": serializer.data,
+            },
+            status=status.HTTP_200_OK
+        )
+
+    def put(self, request, pk):
+        image = self.get_object(pk, request.user)
+        serializer = MakeYourProfilePopSerializer(
+            image,
+            data=request.data,
+            partial=True,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {
+                "success": True,
+                "message": "Pop image updated successfully",
+                "data": serializer.data,
+            },
+            status=status.HTTP_200_OK
+        )
+
+    def delete(self, request, pk):
+        image = self.get_object(pk, request.user)
+        image.delete()
+        return Response(
+            {   "success": True,
+                "message": "Pop image deleted successfully"
+            },
+            status=status.HTTP_204_NO_CONTENT
         )

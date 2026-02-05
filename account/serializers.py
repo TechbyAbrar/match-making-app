@@ -1,4 +1,4 @@
-from account.models import UserAuth
+from account.models import UserAuth, MakeYourProfilePop
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
 from django.utils import timezone
@@ -11,28 +11,31 @@ class UserSerializer(serializers.ModelSerializer):
     profile_pic_url = serializers.SerializerMethodField()
     height = serializers.SerializerMethodField()
     height_inches_total = serializers.SerializerMethodField()
+    age = serializers.ReadOnlyField()  # uses @property age
     profile_link = serializers.ReadOnlyField()
 
     class Meta:
-        model = User
+        model = UserAuth
         fields = [
             "user_id",
             "email",
             "phone",
             "username",
             "full_name",
+
             "profile_pic",
             "profile_pic_url",
 
             "gender",
             "brings",
             "that",
+            "looking_for",
 
             "professional_field",
             "interests",
             "lifestyle",
             "hobies",
-            "about",
+            "bio",
 
             "height_feet",
             "height_inches",
@@ -40,8 +43,11 @@ class UserSerializer(serializers.ModelSerializer):
             "height_inches_total",
 
             "dob",
+            "age",
+
             "city",
             "province",
+            "location",
             "distance",
 
             "is_verified",
@@ -57,6 +63,7 @@ class UserSerializer(serializers.ModelSerializer):
 
             "profile_link",
         ]
+
         read_only_fields = [
             "user_id",
             "is_active",
@@ -65,6 +72,8 @@ class UserSerializer(serializers.ModelSerializer):
             "last_login",
             "created_at",
             "updated_at",
+            "profile_link",
+            "age",
         ]
 
     def get_profile_pic_url(self, obj):
@@ -82,7 +91,6 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_height_inches_total(self, obj):
         return obj.height_in_inches()
-
 
         
 class SignupSerialzier(serializers.Serializer):
@@ -285,3 +293,75 @@ class ResetPasswordSerializer(serializers.Serializer):
         user.set_password(self.validated_data["new_password"])
         user.save(update_fields=["password"])
         return user
+    
+
+# multiselect field serializer
+class MultiSelectFieldSerializer(serializers.ListField):
+    child = serializers.CharField()
+
+    def to_representation(self, value):
+        # value comes as a list already from django-multiselectfield
+        return value or []
+
+    def to_internal_value(self, data):
+        if isinstance(data, str):
+            raise serializers.ValidationError("Expected a list of values, not a string.")
+
+        return super().to_internal_value(data)
+
+
+# profile update serializer
+class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    brings = MultiSelectFieldSerializer(required=False)
+    that = MultiSelectFieldSerializer(required=False)
+    looking_for = MultiSelectFieldSerializer(required=False)
+
+    class Meta:
+        model = UserAuth
+        fields = [
+            "full_name",
+            "username",
+            "phone",
+            "profile_pic",
+            "gender",
+            "brings",
+            "that",
+            "looking_for",
+            "professional_field",
+            "interests",
+            "lifestyle",
+            "hobies",
+            "bio",
+            "height_feet",
+            "height_inches",
+            "dob",
+            "city",
+            "province",
+            "location",
+            "distance",
+        ]
+
+    def validate_username(self, value):
+        user = self.context["request"].user
+        if UserAuth.objects.exclude(pk=user.pk).filter(username=value).exists():
+            raise serializers.ValidationError("This username is already taken.")
+        return value
+    
+# profile pop up image serializer
+class MakeYourProfilePopSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MakeYourProfilePop
+        fields = ["id", "user", "image", "image_url", "created_at", "updated_at"]
+        read_only_fields = ["id", "user", "created_at", "updated_at"]
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+
+    def validate(self, attrs):
+        user = self.context["request"].user
+        if self.instance is None and user.pop_images.count() >= 7:
+            raise serializers.ValidationError("You can upload a maximum of 7 pop-up images.")
+        return attrs

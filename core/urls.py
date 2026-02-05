@@ -24,6 +24,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('v1/', include([
         path('account/', include('account.urls')),
+        path('privacy/', include('privacy.urls')),
+        path('mutual-system/', include('mutual_system.urls')),
     ])),
 ]
 
