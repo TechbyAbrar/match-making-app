@@ -2,7 +2,8 @@ from django.urls import path
 from .views import (
     RegisterAPIView, VerifyOTPAPIView, ResendVerifyOTPAPIView, LoginView, ForgetPasswordView, 
     VerifyForgetPasswordOTPView, ResetPasswordView, UserProfileUpdateAPIView, 
-    UserProfileAPIView, UserProfileHardDeleteAPIView, PopImageListCreateAPIView, PopImageRetrieveUpdateDeleteAPIView)
+    UserProfileAPIView, UserProfileHardDeleteAPIView, PopImageListCreateAPIView, PopImageRetrieveUpdateDeleteAPIView,
+    GlobalFeedAPIView, UserDetailsProfileAPIView, LikeUserAPIView, UnlikeUserAPIView, WhoLikedUserAPIView, UserSearchAPIView)
 
 urlpatterns = [
     path("signup/", RegisterAPIView.as_view(), name="user-register"),
@@ -23,4 +24,18 @@ urlpatterns = [
     # pop image urls
     path("pop-images/", PopImageListCreateAPIView.as_view(), name="pop-image-list-create"),
     path("pop-images/<int:pk>/", PopImageRetrieveUpdateDeleteAPIView.as_view(), name="pop-image-detail"),
+    
+    # global feed
+    path("feed/global/", GlobalFeedAPIView.as_view(), name="global-feed"),
+    
+    # user details profile
+    path("user/<str:identifier>/", UserDetailsProfileAPIView.as_view(), name="user-profile"),
+    
+    #liked and unliked
+    path('user/<int:user_id>/like/', LikeUserAPIView.as_view(), name='like-user'),
+    path('user/<int:user_id>/unlike/', UnlikeUserAPIView.as_view(), name='unlike-user'),
+    path("who-liked-me/", WhoLikedUserAPIView.as_view(), name="who-liked-me"),
+    
+    # search and filter
+    path("users/search/", UserSearchAPIView.as_view(), name="user-search"),
 ]

@@ -100,7 +100,7 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
     interests = models.JSONField(default=list, blank=True, null=True)
     lifestyle = models.JSONField(default=list, blank=True, null=True)
     bio = models.TextField(max_length=500, blank=True, null=True)
-    hobies = models.JSONField(default=list, blank=True, null=True)
+    hobbies = models.JSONField(default=list, blank=True, null=True)
     
     height_feet = models.PositiveSmallIntegerField(default=0)
     height_inches = models.PositiveSmallIntegerField(default=0)

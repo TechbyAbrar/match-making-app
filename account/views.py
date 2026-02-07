@@ -26,7 +26,7 @@ from .serializers import (
     ForgetPasswordSerializer,
     VerifyForgetPasswordOTPSerializer,
     ResetPasswordSerializer,
-    UserSerializer, UserProfileUpdateSerializer
+    UserSerializer, UserProfileUpdateSerializer, WhoLikedUserSerializer,
 )
 from account.utils import generate_tokens_for_user
 
@@ -349,3 +349,219 @@ class PopImageRetrieveUpdateDeleteAPIView(APIView):
             },
             status=status.HTTP_204_NO_CONTENT
         )
+        
+
+
+
+
+# Global Feed View
+from core.utils import ResponseHandler
+class GlobalFeedPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 50
+
+class GlobalFeedAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            current_user = request.user
+
+            users_qs = User.objects.filter(is_active=True).exclude(pk=current_user.pk).only(
+                "user_id", "username", "full_name", "is_online", "hobbies"
+            )
+
+            paginator = GlobalFeedPagination()
+            page = paginator.paginate_queryset(users_qs, request)
+
+            feed_data = []
+            for user in page:
+                # Only last updated pop image
+                last_image = user.pop_images.order_by("-updated_at").first()
+                pop_images_serialized = MakeYourProfilePopSerializer(
+                    [last_image], many=True, context={"request": request}
+                ).data if last_image else []
+
+                feed_data.append({
+                    "user_id": user.user_id,
+                    "username": user.username or "",
+                    "full_name": user.full_name or "",
+                    "is_online": user.is_online,
+                    "hobbies": user.hobbies or [],
+                    "pop_images": pop_images_serialized,
+                })
+
+            return ResponseHandler.success(
+                message="Global feed fetched successfully.",
+                data=paginator.get_paginated_response(feed_data).data
+            )
+
+        except Exception as exc:
+            return ResponseHandler.server_error(
+                message="Failed to fetch global feed.",
+                errors=str(exc)
+            )
+
+
+# get a user profile by username
+class UserDetailsProfileAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, identifier):
+        try:
+            # Determine if identifier is numeric (user_id) or string (username)
+            if identifier.isdigit():
+                user = get_object_or_404(User, user_id=int(identifier), is_active=True)
+            else:
+                user = get_object_or_404(User, username=identifier, is_active=True)
+
+            serializer = UserSerializer(user, context={"request": request})
+            return ResponseHandler.success(
+                message="User profile fetched successfully.",
+                data=serializer.data
+            )
+
+        except Exception as exc:
+            return ResponseHandler.server_error(
+                message="Failed to fetch user profile.",
+                errors=str(exc)
+            )
+            
+
+#liked and unliked user views
+from .services import UserLikeService
+class LikeUserAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, user_id):
+        try:
+            UserLikeService.like_user(request.user, user_id)
+            return ResponseHandler.success(message="User liked.", data={"liked": True})
+        except ValueError as e:
+            return ResponseHandler.bad_request(message=str(e))
+        except Exception as e:
+            logger.exception("Error liking user")
+            return ResponseHandler.generic_error(exception=e)
+
+class UnlikeUserAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, user_id):
+        try:
+            UserLikeService.unlike_user(request.user, user_id)
+            return ResponseHandler.success(message="User unliked.", data={"liked": False})
+        except ValueError as e:
+            return ResponseHandler.bad_request(message=str(e))
+        except Exception as e:
+            logger.exception("Error unliking user")
+            return ResponseHandler.generic_error(exception=e)
+
+
+class WhoLikedUserAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = PageNumberPagination
+
+    def get_cache_key(self, user_id: int, page: int, page_size: int) -> str:
+        return f"who_liked:{user_id}:page:{page}:size:{page_size}"
+
+    def get(self, request):
+        user = request.user
+        user_id = getattr(user, "user_id", None) or getattr(user, "id")
+
+        paginator = self.pagination_class()
+
+        # Resolve page params
+        page_number = request.query_params.get(paginator.page_query_param, "1")
+        page_size = paginator.get_page_size(request) or paginator.page_size or 20
+
+        cache_key = self.get_cache_key(user_id, page_number, page_size)
+
+        # Try cache
+        try:
+            cached_payload = cache.get(cache_key)
+        except Exception as exc:
+            logger.warning(
+                "Cache GET failed for who-liked",
+                extra={"user_id": user_id, "exc": str(exc)},
+            )
+            cached_payload = None
+
+        if cached_payload:
+            logger.info("who-liked cache hit", extra={"user_id": user_id})
+            return ResponseHandler.success(
+                message=f"{cached_payload['pagination']['count']} users liked your profile.",
+                data=cached_payload["results"],
+                extra={"pagination": cached_payload["pagination"]},
+            )
+
+        # Query set
+        try:
+            qs = UserLikeService.who_liked_user(user_id)
+        except Exception as exc:
+            return ResponseHandler.generic_error(exception=exc)
+
+        # Pagination
+        page = paginator.paginate_queryset(qs, request, view=self)
+
+        serialized = WhoLikedUserSerializer(
+            page, many=True, context={"request": request}
+        ).data
+
+        # Count safely
+        try:
+            total_count = qs.count()
+        except Exception:
+            total_count = len(list(qs))
+
+        pagination = {
+            "count": total_count,
+            "next": paginator.get_next_link(),
+            "previous": paginator.get_previous_link(),
+            "page": int(page_number),
+            "page_size": page_size,
+        }
+
+        payload = {"results": serialized, "pagination": pagination}
+
+        # Try caching response
+        try:
+            CACHE_TTL = 15 # seconds
+            cache.set(cache_key, payload, CACHE_TTL)
+        except Exception as exc:
+            logger.warning("Cache SET failed", extra={"exc": str(exc)})
+
+        return ResponseHandler.success(
+            message=f"{total_count} users liked your profile.",
+            data=serialized,
+            extra={"pagination": pagination},
+        )
+        
+
+CACHE_TTL = 30  # seconds
+class UserSearchAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            
+            query = request.query_params.get("q", "").strip()
+            if not query:
+                return ResponseHandler.bad_request(message="Query param 'q' is required.")
+
+            cache_key = f"user_search:{query}"
+            users = cache.get(cache_key)
+
+            if not users:
+                users = User.objects.filter(
+                    Q(username__icontains=query) |
+                    Q(full_name__icontains=query) |
+                    Q(email__icontains=query)
+                ).order_by("-created_at")[:50]
+                cache.set(cache_key, users, CACHE_TTL)
+
+            serializer = WhoLikedUserSerializer(users, many=True, context={"request": request})
+            return ResponseHandler.success(data=serializer.data)
+
+        except Exception as e:
+            return ResponseHandler.generic_error(exception=e)
