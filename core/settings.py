@@ -215,8 +215,8 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # Logging Configuration
 
+# settings.py
 LOG_DIR = BASE_DIR / "logs"
-# Ensure folder always exists
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 LOGGING = {
@@ -224,36 +224,75 @@ LOGGING = {
     "disable_existing_loggers": False,
 
     "formatters": {
-        "standard": {
-            "format": (
-                "[{asctime}] [{levelname}] "
-                "[{pathname}:{lineno}] {message}"
-            ),
+        "default": {
+            "format": "[{asctime}] [{levelname}] {message}",
+            "style": "{",
+        },
+        "access": {
+            "format": "[{asctime}] {message}",
             "style": "{",
         },
     },
 
     "handlers": {
-        "system_file": {
+        "access_file": {
             "class": "logging.handlers.TimedRotatingFileHandler",
             "level": "INFO",
-            "filename": LOG_DIR / "system.log",
-            "when": "D",
+            "filename": LOG_DIR / "access.log",
+            "when": "D",          # rotate daily
             "interval": 1,
-            "backupCount": 5,
+            "backupCount": 7,     # keep 7 days only
+            "formatter": "access",
             "encoding": "utf-8",
-            "delay": True,
+        },
+        "error_file": {
+            "class": "logging.handlers.TimedRotatingFileHandler",
+            "level": "ERROR",
+            "filename": LOG_DIR / "error.log",
+            "when": "D",          # rotate daily
+            "interval": 1,
+            "backupCount": 7,     # keep 7 days only
+            "formatter": "default",
+            "encoding": "utf-8",
+        },
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "INFO",
+            "formatter": "default",
         },
     },
 
     "loggers": {
-        "system": {
-            "handlers": ["system_file"],
+        "django.server": {
+            "handlers": ["access_file", "console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["error_file", "console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+        "gunicorn.access": {
+            "handlers": ["access_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "gunicorn.error": {
+            "handlers": ["error_file", "console"],
             "level": "INFO",
             "propagate": False,
         },
     },
+
+    "root": {
+        "handlers": ["error_file", "console"],
+        "level": "ERROR",
+    },
 }
+
+
+
 
 
 # Redis for channel layers
