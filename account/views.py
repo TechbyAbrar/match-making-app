@@ -8,6 +8,9 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q, Prefetch
 from django.contrib.auth import get_user_model
+from django.db.models import Q
+from datetime import date
+
 
 # DRF
 from rest_framework import status, permissions
@@ -562,6 +565,58 @@ class UserSearchAPIView(APIView):
 
             serializer = WhoLikedUserSerializer(users, many=True, context={"request": request})
             return ResponseHandler.success(data=serializer.data)
+
+        except Exception as e:
+            return ResponseHandler.generic_error(exception=e)
+        
+
+
+class UserFilterAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            gender = request.query_params.get("gender")
+            min_age = request.query_params.get("min_age")
+            max_age = request.query_params.get("max_age")
+            max_distance = request.query_params.get("max_distance")
+
+            filters = Q()
+
+            if gender:
+                filters &= Q(gender__iexact=gender)  # case insensitive
+
+            today = date.today()
+
+            if min_age:
+                min_age = int(min_age)
+                max_dob = date(today.year - min_age, today.month, today.day)
+                filters &= Q(dob__lte=max_dob)
+
+            if max_age:
+                max_age = int(max_age)
+                min_dob = date(today.year - max_age, today.month, today.day)
+                filters &= Q(dob__gte=min_dob)
+
+            if max_distance:
+                filters &= Q(distance__lte=int(max_distance))
+
+            cache_key = f"user_filter:{gender}:{min_age}:{max_age}:{max_distance}"
+            users = cache.get(cache_key)
+
+            if not users:
+                users = (
+                    User.objects
+                    .filter(filters)
+                    .order_by("-created_at")[:50]
+                )
+                cache.set(cache_key, users, CACHE_TTL)
+
+            serializer = WhoLikedUserSerializer(users, many=True, context={"request": request})
+            return ResponseHandler.success(data=serializer.data)
+
+        except ValueError:
+            return ResponseHandler.error(message="Invalid filter values", status=400)
 
         except Exception as e:
             return ResponseHandler.generic_error(exception=e)

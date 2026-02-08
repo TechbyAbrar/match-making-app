@@ -7,7 +7,28 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 from django.conf import settings
 
+
+# profile pop up image serializer
+class MakeYourProfilePopSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MakeYourProfilePop
+        fields = ["id", "user", "image", "image_url", "created_at", "updated_at"]
+        read_only_fields = ["id", "user", "created_at", "updated_at"]
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+
+    def validate(self, attrs):
+        user = self.context["request"].user
+        if self.instance is None and user.pop_images.count() >= 7:
+            raise serializers.ValidationError("You can upload a maximum of 7 pop-up images.")
+        return attrs
+
 class UserSerializer(serializers.ModelSerializer):
+    pop_images = MakeYourProfilePopSerializer(many=True, read_only=True)
     profile_pic_url = serializers.SerializerMethodField()
     height = serializers.SerializerMethodField()
     height_inches_total = serializers.SerializerMethodField()
@@ -57,6 +78,8 @@ class UserSerializer(serializers.ModelSerializer):
 
             "is_subscribed",
             "subscription_expiry",
+            
+            "pop_images",
 
             "created_at",
             "updated_at",
@@ -347,24 +370,7 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("This username is already taken.")
         return value
     
-# profile pop up image serializer
-class MakeYourProfilePopSerializer(serializers.ModelSerializer):
-    image_url = serializers.SerializerMethodField()
 
-    class Meta:
-        model = MakeYourProfilePop
-        fields = ["id", "user", "image", "image_url", "created_at", "updated_at"]
-        read_only_fields = ["id", "user", "created_at", "updated_at"]
-
-    def get_image_url(self, obj):
-        request = self.context.get("request")
-        return request.build_absolute_uri(obj.image.url) if request else obj.image.url
-
-    def validate(self, attrs):
-        user = self.context["request"].user
-        if self.instance is None and user.pop_images.count() >= 7:
-            raise serializers.ValidationError("You can upload a maximum of 7 pop-up images.")
-        return attrs
 
 
 # who liked user serializer

@@ -3,7 +3,7 @@ from .views import (
     RegisterAPIView, VerifyOTPAPIView, ResendVerifyOTPAPIView, LoginView, ForgetPasswordView, 
     VerifyForgetPasswordOTPView, ResetPasswordView, UserProfileUpdateAPIView, 
     UserProfileAPIView, UserProfileHardDeleteAPIView, PopImageListCreateAPIView, PopImageRetrieveUpdateDeleteAPIView,
-    GlobalFeedAPIView, UserDetailsProfileAPIView, LikeUserAPIView, UnlikeUserAPIView, WhoLikedUserAPIView, UserSearchAPIView)
+    GlobalFeedAPIView, UserDetailsProfileAPIView, LikeUserAPIView, UnlikeUserAPIView, WhoLikedUserAPIView, UserSearchAPIView, UserFilterAPIView)
 
 urlpatterns = [
     path("signup/", RegisterAPIView.as_view(), name="user-register"),
@@ -38,4 +38,5 @@ urlpatterns = [
     
     # search and filter
     path("users/search/", UserSearchAPIView.as_view(), name="user-search"),
+    path("users/filter/", UserFilterAPIView.as_view(), name="user-filter"),
 ]
