@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import ChatThread, Message, MessageReaction
+from .models import ChatThread, Message, MessageReaction, SocietyMember, SocietyMessage, Society
 
 User = get_user_model()
 
@@ -65,3 +65,43 @@ class ThreadListSerializer(serializers.ModelSerializer):
     def get_last_message(self, obj):
         last = obj.messages.order_by("-created_at").first()
         return MessageSerializer(last).data if last else None
+
+
+
+# society/serializers.py
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from .models import Society, SocietyMember, SocietyMessage
+
+User = get_user_model()
+
+
+class SocietySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Society
+        fields = ["id", "name", "image", "created_by", "created_at"]
+        read_only_fields = ["id", "created_by", "created_at"]
+
+    def create(self, validated_data):
+        user = self.context["request"].user
+        validated_data["created_by"] = user
+        society = super().create(validated_data)
+        SocietyMember.objects.create(society=society, user=user, is_admin=True)
+        return society
+
+
+class SocietyMemberSerializer(serializers.ModelSerializer):
+    user = SimpleUserSerializer(read_only=True)
+
+    class Meta:
+        model = SocietyMember
+        fields = ["id", "user", "is_admin", "joined_at"]
+
+
+class SocietyMessageSerializer(serializers.ModelSerializer):
+    sender = SimpleUserSerializer(read_only=True)
+
+    class Meta:
+        model = SocietyMessage
+        fields = ["id", "society", "sender", "content", "message_type", "attachment", "created_at"]
+        read_only_fields = ["id", "sender", "created_at"]

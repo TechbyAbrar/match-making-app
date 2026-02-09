@@ -57,3 +57,45 @@ class MessageReaction(models.Model):
 
     class Meta:
         unique_together = ("message", "user")
+
+
+
+# society/models.py
+from django.db import models
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class Society(models.Model):
+    name = models.CharField(max_length=255)
+    image = models.ImageField(upload_to="society/", null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="created_societies")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+
+class SocietyMember(models.Model):
+    society = models.ForeignKey(Society, on_delete=models.CASCADE, related_name="members")
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    is_admin = models.BooleanField(default=False)
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("society", "user")
+
+
+class SocietyMessage(models.Model):
+    society = models.ForeignKey(Society, related_name="messages", on_delete=models.CASCADE)
+    sender = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    content = models.TextField(blank=True)
+    attachment = models.ImageField(upload_to="society_messages/", null=True, blank=True)
+    message_type = models.CharField(max_length=20, default="text")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]

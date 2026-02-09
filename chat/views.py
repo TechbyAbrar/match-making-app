@@ -73,3 +73,59 @@ class MessageListCreateAPIView(APIView):
             cache.set(key, 1, timeout=7*24*3600)
 
         return ResponseHandler.created(data=serializer.data)
+
+
+
+#society
+from django.shortcuts import get_object_or_404
+from rest_framework.views import APIView
+from rest_framework import permissions
+from core.utils import ResponseHandler
+from .models import Society, SocietyMember, SocietyMessage
+from .serializers import SocietySerializer, SocietyMemberSerializer, SocietyMessageSerializer
+
+
+class SocietyListCreateAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        societies = Society.objects.filter(members__user=request.user).distinct()
+        return ResponseHandler.success(data=SocietySerializer(societies, many=True).data)
+
+    def post(self, request):
+        serializer = SocietySerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return ResponseHandler.created(data=serializer.data)
+
+
+class SocietyAddMemberAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, society_id):
+        user_id = request.data.get("user_id")
+        if not user_id:
+            return ResponseHandler.bad_request(errors={"user_id": "This field is required."})
+
+        society = get_object_or_404(Society, pk=society_id)
+
+        # only admin can add members
+        if not SocietyMember.objects.filter(society=society, user=request.user, is_admin=True).exists():
+            return ResponseHandler.forbidden(message="Only admin can add members.")
+
+        SocietyMember.objects.get_or_create(society=society, user_id=user_id)
+        return ResponseHandler.success(message="Member added successfully.")
+
+
+class SocietyMessageListAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, society_id):
+        society = get_object_or_404(Society, pk=society_id)
+
+        if not SocietyMember.objects.filter(society=society, user=request.user).exists():
+            return ResponseHandler.forbidden(message="You are not a member of this society.")
+
+        qs = SocietyMessage.objects.filter(society=society).select_related("sender").order_by("created_at")
+        return ResponseHandler.success(data=SocietyMessageSerializer(qs, many=True).data)
+
