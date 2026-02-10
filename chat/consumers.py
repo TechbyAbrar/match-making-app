@@ -1,17 +1,29 @@
-import json
 import base64
+import json
 import logging
-from channels.generic.websocket import AsyncWebsocketConsumer
-from channels.db import database_sync_to_async
-from django.core.files.base import ContentFile
+
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.core.files.base import ContentFile
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from .models import ChatThread, Message, MessageReaction
+from channels.db import database_sync_to_async
+from channels.generic.websocket import AsyncWebsocketConsumer
 
-logger = logging.getLogger(__name__)
+from .models import (
+    Society,
+    SocietyMember,
+    SocietyMessage,
+    ChatThread,
+    Message,
+    MessageReaction,
+)
+from .serializers import SocietyMessageSerializer
+
 User = get_user_model()
+logger = logging.getLogger(__name__)
+
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -213,3 +225,77 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def serialize_message(self, msg):
         from .serializers import MessageSerializer
         return MessageSerializer(msg).data
+
+
+
+# society/consumers.py
+
+
+class SocietyConsumer(AsyncWebsocketConsumer):
+
+    async def connect(self):
+        user = self.scope["user"]
+        if user.is_anonymous:
+            await self.close()
+            return
+
+        self.society_id = self.scope["url_route"]["kwargs"]["society_id"]
+        self.group_name = f"society_{self.society_id}"
+
+        is_member = await self.is_society_member(self.society_id, user)
+        if not is_member:
+            await self.close()
+            return
+
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def receive(self, text_data):
+        data = json.loads(text_data)
+        event_type = data.get("type")
+        payload = data.get("payload", {})
+
+        if event_type == "message.send":
+            await self.handle_message_send(payload)
+
+    async def handle_message_send(self, payload):
+        user = self.scope["user"]
+
+        content = payload.get("content", "")
+        message_type = payload.get("message_type", "text")
+        attachment = payload.get("attachment")
+
+        msg = await self.create_message(user, content, message_type, attachment)
+        serialized = SocietyMessageSerializer(msg).data
+
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                "type": "society.message",
+                "data": serialized
+            }
+        )
+
+    async def society_message(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "message.new",
+            "data": event["data"]
+        }))
+
+    @database_sync_to_async
+    def is_society_member(self, society_id, user):
+        return SocietyMember.objects.filter(society_id=society_id, user=user).exists()
+
+    @database_sync_to_async
+    def create_message(self, user, content, message_type, attachment):
+        society = get_object_or_404(Society, id=self.society_id)
+        return SocietyMessage.objects.create(
+            society=society,
+            sender=user,
+            content=content,
+            message_type=message_type,
+            attachment=attachment,
+        )

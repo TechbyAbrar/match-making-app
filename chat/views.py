@@ -1,15 +1,34 @@
 import logging
+
+from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.core.cache import cache
+
+from rest_framework.exceptions import ValidationError
+from rest_framework import permissions, parsers, status
 from rest_framework.views import APIView
-from rest_framework import permissions
-from django.db.models import Q
-from .models import ChatThread, Message
-from .serializers import ThreadListSerializer, MessageSerializer
+
+from core.utils import ResponseHandler
+
+from .models import (
+    ChatThread,
+    Message,
+    Society,
+    SocietyMember,
+    SocietyMessage,
+)
+from .serializers import (
+    ThreadListSerializer,
+    MessageSerializer,
+    SocietySerializer,
+    SocietyMemberSerializer,
+    SocietyMessageSerializer,
+)
 from .pagination import MessagePagination
-from core.utils import ResponseHandler  
 
 logger = logging.getLogger(__name__)
+
 
 
 class ThreadListCreateAPIView(APIView):
@@ -77,27 +96,33 @@ class MessageListCreateAPIView(APIView):
 
 
 #society
-from django.shortcuts import get_object_or_404
-from rest_framework.views import APIView
-from rest_framework import permissions
-from core.utils import ResponseHandler
-from .models import Society, SocietyMember, SocietyMessage
-from .serializers import SocietySerializer, SocietyMemberSerializer, SocietyMessageSerializer
-
-
 class SocietyListCreateAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = (
+        parsers.MultiPartParser,
+        parsers.FormParser,
+        parsers.JSONParser,
+    )
 
     def get(self, request):
         societies = Society.objects.filter(members__user=request.user).distinct()
-        return ResponseHandler.success(data=SocietySerializer(societies, many=True).data)
+        return ResponseHandler.success(
+            data=SocietySerializer(societies, many=True).data
+        )
 
+    @transaction.atomic
     def post(self, request):
-        serializer = SocietySerializer(data=request.data, context={"request": request})
+        serializer = SocietySerializer(
+            data=request.data,
+            context={"request": request},
+        )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return ResponseHandler.created(data=serializer.data)
 
+        society = serializer.save()  # name + image
+
+        return ResponseHandler.created(
+            data=SocietySerializer(society).data
+        )
 
 class SocietyAddMemberAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -117,8 +142,13 @@ class SocietyAddMemberAPIView(APIView):
         return ResponseHandler.success(message="Member added successfully.")
 
 
-class SocietyMessageListAPIView(APIView):
+class SocietyMessageListCreateAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = (
+        parsers.MultiPartParser,
+        parsers.FormParser,
+        parsers.JSONParser,
+    )
 
     def get(self, request, society_id):
         society = get_object_or_404(Society, pk=society_id)
@@ -126,6 +156,42 @@ class SocietyMessageListAPIView(APIView):
         if not SocietyMember.objects.filter(society=society, user=request.user).exists():
             return ResponseHandler.forbidden(message="You are not a member of this society.")
 
-        qs = SocietyMessage.objects.filter(society=society).select_related("sender").order_by("created_at")
-        return ResponseHandler.success(data=SocietyMessageSerializer(qs, many=True).data)
+        qs = (
+            SocietyMessage.objects
+            .filter(society=society)
+            .select_related("sender")
+            .order_by("created_at")
+        )
+        return ResponseHandler.success(
+            data=SocietyMessageSerializer(qs, many=True).data
+        )
 
+    @transaction.atomic
+    def post(self, request, society_id):
+        society = get_object_or_404(Society, pk=society_id)
+
+        member = SocietyMember.objects.filter(society=society, user=request.user).first()
+        if not member:
+            return ResponseHandler.forbidden(message="You are not a member of this society.")
+
+        content = (request.data.get("content") or "").strip()
+        attachment = request.FILES.get("attachment")
+
+        if not content and not attachment:
+            raise ValidationError("Message must contain text or an attachment.")
+
+        message_type = "image" if attachment else "text"
+
+        msg = SocietyMessage.objects.create(
+            society=society,
+            sender=request.user,
+            content=content,
+            attachment=attachment,
+            message_type=message_type,
+        )
+
+        return ResponseHandler.created(
+            data=SocietyMessageSerializer(msg).data
+        )   
+        
+        
