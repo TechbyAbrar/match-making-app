@@ -44,5 +44,4 @@ class ShareThoughts(models.Model):
         return f"{self.user.username} - {self.thoughts[:30]}"
     
     
-    
-    
+#subscription model

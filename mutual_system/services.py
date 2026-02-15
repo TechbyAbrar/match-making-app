@@ -1,25 +1,39 @@
+# Standard library imports
 import logging
+from typing import Optional, Dict
+
+# Django imports
 from django.conf import settings
-from django_redis import get_redis_connection
 from django.contrib.auth import get_user_model
-from django.db import transaction
-from .models import ProfileShare, UserBlock
-import logging
-from django.db import transaction
 from django.core.cache import cache
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
+from django.db.models import Count, F
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.conf import settings
-from django.db.models import Count
 
-from .models import Report
+# Third-party imports
+from django_redis import get_redis_connection
 
+# Local app imports
+from .models import (
+    ProfileShare,
+    UserBlock,
+    Report,
+    Story,
+    StoryLike,
+    Notification,
+)
+
+# Logger setup
 logger = logging.getLogger(__name__)
 
+# Redis connection
+REDIS = get_redis_connection("default")
+
+# Get User model
 User = get_user_model()
 
-
-logger = logging.getLogger(__name__)
-REDIS = get_redis_connection("default")
 
 def add_story_view(story_id: str, viewer_id: int) -> bool:
     """
@@ -60,7 +74,7 @@ def get_story_viewers(story_id: str, offset=0, limit=20):
 
 
 # PROFILE SHARING SERVICES
-from django.core.exceptions import ObjectDoesNotExist
+
 
 def resolve_target_user(target: str) -> "User":
     """
@@ -111,11 +125,7 @@ def create_share(sharer: "User", target: str) -> tuple["ProfileShare", bool]:
 # Block
 
 # users/services/user_block_service.py
-from django.db import transaction
-from django.core.cache import cache
-from django.contrib.auth import get_user_model
 
-User = get_user_model()
 CACHE_TIMEOUT = 60*1
 
 class UserBlockService:
@@ -154,7 +164,6 @@ class UserBlockService:
 
 
 # report
-
 
 AGGREGATED_REPORTS_CACHE_KEY = "reports:aggregated_profiles_v1"
 AGGREGATED_REPORTS_CACHE_TTL = 60  # seconds (adjust for your traffic/consistency needs)
@@ -234,15 +243,7 @@ class ReportService:
 # story services
 
 # stories/services/like_service.py
-from django.db import transaction
-from django.db.models import F
-from django.shortcuts import get_object_or_404
-from django.utils import timezone
-import logging
-from .models import Story, StoryLike
 
-
-logger = logging.getLogger(__name__)
 
 
 class StoryLikeService:
@@ -282,3 +283,30 @@ class StoryLikeService:
         Returns True if the given user has liked the story, False otherwise.
         """
         return StoryLike.objects.filter(story=story, user=user).exists()
+    
+    
+    
+# notifications/services.py
+
+
+def create_notification(
+    recipient: User,
+    type: str,
+    message: str,
+    sender: Optional[User] = None,
+    metadata: Optional[Dict] = None
+) -> Notification:
+    """
+    Creates a notification efficiently.
+    """
+    metadata = metadata or {}
+    with transaction.atomic():
+        notification = Notification.objects.create(
+            recipient=recipient,
+            sender=sender,
+            type=type,
+            message=message,
+            metadata=metadata,
+            created_at=timezone.now()
+        )
+    return notification

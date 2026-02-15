@@ -4,8 +4,10 @@ from .views import (
     StoryViewAPIView, StoryViewersAPIView, GlobalStoriesAPIView, 
     ShareProfileAPIView, PublicProfileLinkAPIView,
     BlockedUserListView, BlockUserView, UnblockUserView, 
-    CreateReportAPIView, AdminAggregatedReportsAPIView, StoryLikeAPIView, StoryUnlikeAPIView, UserStoriesAPIView, FaceScanView
+    CreateReportAPIView, AdminAggregatedReportsAPIView, StoryLikeAPIView, StoryUnlikeAPIView, UserStoriesAPIView, NotificationListView, NotificationMarkReadView, NotificationUnreadCountView
 )
+
+# FaceScanView
 
 urlpatterns = [
     path('create/story/', StoryCreateAPIView.as_view(), name='post-story'),
@@ -36,5 +38,11 @@ urlpatterns = [
     path("admin/reports/aggregated/", AdminAggregatedReportsAPIView.as_view(), name="admin-aggregated-reports"),
     
     # face recognition api
-    path('scan-face/', FaceScanView.as_view(), name='scan-face'),
+    # path('scan-face/', FaceScanView.as_view(), name='scan-face'),
+    
+    #notifications
+    path('notifications/', NotificationListView.as_view(), name='notifications-list'),
+    path('notifications/<int:pk>/mark-read/', NotificationMarkReadView.as_view(), name='notification-mark-read'),
+    path('notifications/unread-count/', NotificationUnreadCountView.as_view(), name='notifications-unread-count'),
+    
 ]

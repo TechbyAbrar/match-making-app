@@ -3,7 +3,7 @@ import random
 import uuid
 import base64
 
-import face_recognition
+# import face_recognition
 from PIL import Image
 
 from django.utils import timezone
@@ -44,6 +44,9 @@ from .services import (
     ReportService,
     ReportServiceError,
 )
+
+from .models import Notification
+from .serializers import NotificationSerializer
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -568,77 +571,117 @@ class UserStoriesAPIView(APIView):
         
         
 
-# faceapi/views.py
-class FaceScanView(APIView):
-    def post(self, request, format=None):
-        try:
-            file = None
+# # faceapi/views.py
+# class FaceScanView(APIView):
+#     def post(self, request, format=None):
+#         try:
+#             file = None
 
-            if request.FILES.get("face_image"):
-                file = request.FILES.get("face_image")
-
-
-            elif request.data.get("face_image"):
-                base64_image = request.data.get("face_image")
-
-                if "base64," in base64_image:
-                    format, imgstr = base64_image.split(";base64,")
-                    ext = format.split("/")[-1]
-                else:
-                    imgstr = base64_image
-                    ext = "jpg"
-
-                file = ContentFile(
-                    base64.b64decode(imgstr),
-                    name=f"{uuid.uuid4()}.{ext}",
-                )
-
-            if not file:
-                return Response(
-                    {"error": "No image provided"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+#             if request.FILES.get("face_image"):
+#                 file = request.FILES.get("face_image")
 
 
-            image = face_recognition.load_image_file(file)
-            face_locations = face_recognition.face_locations(image)
+#             elif request.data.get("face_image"):
+#                 base64_image = request.data.get("face_image")
 
-            if not face_locations:
-                return Response(
-                    {"error": "No face detected"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            file.seek(0)
-            if UserFace.objects.filter(user=request.user).exists():
-                return Response(
-                    {"error": "Face already registered"},
-                    status=status.HTTP_409_CONFLICT,
-                )
-            with transaction.atomic():
-                serializer = UserFaceSerializer(
-                    data={
-                        "user": request.user.id,
-                        "face_image": file,
-                    }
-                )
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
+#                 if "base64," in base64_image:
+#                     format, imgstr = base64_image.split(";base64,")
+#                     ext = format.split("/")[-1]
+#                 else:
+#                     imgstr = base64_image
+#                     ext = "jpg"
 
-            return Response(
-                {   
-                    "success": True,
-                    "message": "Face registered successfully",
-                    "faces_detected": len(face_locations),
-                },
-                status=status.HTTP_201_CREATED,
-            )
+#                 file = ContentFile(
+#                     base64.b64decode(imgstr),
+#                     name=f"{uuid.uuid4()}.{ext}",
+#                 )
 
-        except Exception as e:
-            return Response(
-                {
-                    "success": False,
-                    "error": "Face registration failed",
-                    "details": str(e),
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+#             if not file:
+#                 return Response(
+#                     {"error": "No image provided"},
+#                     status=status.HTTP_400_BAD_REQUEST,
+#                 )
+
+
+#             image = face_recognition.load_image_file(file)
+#             face_locations = face_recognition.face_locations(image)
+
+#             if not face_locations:
+#                 return Response(
+#                     {"error": "No face detected"},
+#                     status=status.HTTP_400_BAD_REQUEST,
+#                 )
+#             file.seek(0)
+#             if UserFace.objects.filter(user=request.user).exists():
+#                 return Response(
+#                     {"error": "Face already registered"},
+#                     status=status.HTTP_409_CONFLICT,
+#                 )
+#             with transaction.atomic():
+#                 serializer = UserFaceSerializer(
+#                     data={
+#                         "user": request.user.id,
+#                         "face_image": file,
+#                     }
+#                 )
+#                 serializer.is_valid(raise_exception=True)
+#                 serializer.save()
+
+#             return Response(
+#                 {   
+#                     "success": True,
+#                     "message": "Face registered successfully",
+#                     "faces_detected": len(face_locations),
+#                 },
+#                 status=status.HTTP_201_CREATED,
+#             )
+
+#         except Exception as e:
+#             return Response(
+#                 {
+#                     "success": False,
+#                     "error": "Face registration failed",
+#                     "details": str(e),
+#                 },
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             )
+
+
+
+# notifications/views.py
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status, permissions
+from django.shortcuts import get_object_or_404
+from .models import Notification
+from .serializers import NotificationSerializer
+
+class NotificationListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        notifications = Notification.objects.filter(recipient=request.user).order_by('-created_at')[:50]
+        serializer = NotificationSerializer(notifications, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class NotificationMarkReadView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        notification = get_object_or_404(Notification, pk=pk)
+        if notification.recipient != request.user:
+            return Response({"detail": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+        notification.is_read = True
+        notification.save(update_fields=['is_read'])
+        serializer = NotificationSerializer(notification)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class NotificationUnreadCountView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+        return Response({"unread_count": count}, status=status.HTTP_200_OK)

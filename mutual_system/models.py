@@ -155,3 +155,43 @@ class Report(models.Model):
 class UserFace(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     face_image = models.ImageField(upload_to='faceverify/')
+
+
+#notifications model
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+
+User = settings.AUTH_USER_MODEL
+
+class Notification(models.Model):
+    NOTIFICATION_TYPES = [
+        ('STORY_LIKE', 'Story Like'),
+        ('USER_LIKE', 'User Like'),
+        ('PROFILE_SHARE', 'Profile Share'),
+        ('REPORT', 'Report'),
+        ('OTHER', 'Other'),
+    ]
+
+    recipient = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='notifications'
+    )
+    sender = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='sent_notifications',
+        null=True, blank=True
+    )
+    type = models.CharField(max_length=50, choices=NOTIFICATION_TYPES)
+    message = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['recipient', 'is_read']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.type} → {self.recipient}"

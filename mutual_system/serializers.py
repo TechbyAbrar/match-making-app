@@ -3,7 +3,7 @@ from .models import Story
 from .services import get_story_view_count, StoryLikeService
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import ProfileShare, UserBlock, Report, ReportReason, StoryLike, UserFace
+from .models import ProfileShare, UserBlock, Report, ReportReason, StoryLike, UserFace, Notification
 
 
 User = get_user_model()
@@ -113,3 +113,21 @@ class UserFaceSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserFace
         fields = ['user', 'face_image']
+
+
+# notifications/serializers.py
+
+from rest_framework import serializers
+from .models import Notification
+
+class NotificationSerializer(serializers.ModelSerializer):
+    sender_username = serializers.CharField(source='sender.username', read_only=True)
+    
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'recipient', 'sender', 'sender_username', 
+            'type', 'message', 'metadata', 'is_read', 'created_at'
+        ]
+        read_only_fields = ['id', 'recipient', 'sender', 'sender_username', 'created_at']
+
