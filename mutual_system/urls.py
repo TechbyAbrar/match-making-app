@@ -4,7 +4,7 @@ from .views import (
     StoryViewAPIView, StoryViewersAPIView, GlobalStoriesAPIView, 
     ShareProfileAPIView, PublicProfileLinkAPIView,
     BlockedUserListView, BlockUserView, UnblockUserView, 
-    CreateReportAPIView, AdminAggregatedReportsAPIView, StoryLikeAPIView, StoryUnlikeAPIView, UserStoriesAPIView
+    CreateReportAPIView, AdminAggregatedReportsAPIView, StoryLikeAPIView, StoryUnlikeAPIView, UserStoriesAPIView, FaceScanView
 )
 
 urlpatterns = [
@@ -34,4 +34,7 @@ urlpatterns = [
     # report
     path("reports/", CreateReportAPIView.as_view(), name="create-report"),
     path("admin/reports/aggregated/", AdminAggregatedReportsAPIView.as_view(), name="admin-aggregated-reports"),
+    
+    # face recognition api
+    path('scan-face/', FaceScanView.as_view(), name='scan-face'),
 ]

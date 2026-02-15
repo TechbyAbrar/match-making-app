@@ -1,20 +1,31 @@
 import logging
 import random
+import uuid
+import base64
+
+import face_recognition
+from PIL import Image
+
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
 
 from rest_framework import status, permissions
-from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
+from rest_framework.permissions import (
+    IsAuthenticated,
+    AllowAny,
+    IsAdminUser,
+)
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 
 from core.utils import ResponseHandler
 
-# Story-related
-from .models import Story
+from .models import Story, UserFace
+
 from .serializers import (
     StorySerializer,
     CreateStorySerializer,
@@ -22,7 +33,9 @@ from .serializers import (
     ProfileShareSerializer,
     UserBlockSerializer,
     CreateReportSerializer,
+    UserFaceSerializer,
 )
+
 from .services import (
     add_story_view,
     get_story_viewers,
@@ -98,26 +111,6 @@ class StoryDeleteAPIView(APIView):
         except Exception as e:
             logger.exception(f"Error deleting story {story_id} for user {request.user.user_id}")
             return ResponseHandler.generic_error(exception=e)
-
-
-# ------------------ VIEW STORY ------------------
-# class StoryViewAPIView(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     @transaction.atomic
-#     def post(self, request, story_id):
-#         try:
-#             story = get_object_or_404(
-#                 Story, id=story_id, expires_at__gt=timezone.now(), is_deleted=False
-#             )
-#             if story.user == request.user:
-#                 return ResponseHandler.bad_request(message="You cannot view your own story.")
-
-#             add_story_view(story_id, request.user.user_id)
-#             return ResponseHandler.success(message="View recorded.")
-#         except Exception as e:
-#             logger.exception(f"Error recording view for story {story_id} by user {request.user.user_id}")
-#             return ResponseHandler.generic_error(exception=e)
 
 class StoryViewAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -295,8 +288,6 @@ class PublicProfileLinkAPIView(APIView):
             
             
 # Block views
-
-
 class BlockUserView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -574,3 +565,79 @@ class UserStoriesAPIView(APIView):
         except Exception as e:
             logger.exception(f"Error fetching stories for story_id {story_id}")
             return ResponseHandler.generic_error(exception=e)
+        
+        
+
+
+# faceapi/views.py
+class FaceScanView(APIView):
+    def post(self, request, format=None):
+        try:
+            file = None
+
+            if request.FILES.get("face_image"):
+                file = request.FILES.get("face_image")
+
+
+            elif request.data.get("face_image"):
+                base64_image = request.data.get("face_image")
+
+                if "base64," in base64_image:
+                    format, imgstr = base64_image.split(";base64,")
+                    ext = format.split("/")[-1]
+                else:
+                    imgstr = base64_image
+                    ext = "jpg"
+
+                file = ContentFile(
+                    base64.b64decode(imgstr),
+                    name=f"{uuid.uuid4()}.{ext}",
+                )
+
+            if not file:
+                return Response(
+                    {"error": "No image provided"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+
+            image = face_recognition.load_image_file(file)
+            face_locations = face_recognition.face_locations(image)
+
+            if not face_locations:
+                return Response(
+                    {"error": "No face detected"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            file.seek(0)
+            if UserFace.objects.filter(user=request.user).exists():
+                return Response(
+                    {"error": "Face already registered"},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            with transaction.atomic():
+                serializer = UserFaceSerializer(
+                    data={
+                        "user": request.user.id,
+                        "face_image": file,
+                    }
+                )
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+
+            return Response(
+                {
+                    "message": "Face registered successfully",
+                    "faces_detected": len(face_locations),
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as e:
+            return Response(
+                {
+                    "error": "Face registration failed",
+                    "details": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

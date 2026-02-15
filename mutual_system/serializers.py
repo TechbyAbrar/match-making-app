@@ -3,7 +3,7 @@ from .models import Story
 from .services import get_story_view_count, StoryLikeService
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import ProfileShare, UserBlock, Report, ReportReason, StoryLike
+from .models import ProfileShare, UserBlock, Report, ReportReason, StoryLike, UserFace
 
 
 User = get_user_model()
@@ -105,3 +105,11 @@ class CreateReportSerializer(serializers.ModelSerializer):
         if value == user:
             raise serializers.ValidationError("You cannot report your own profile.")
         return value
+
+
+
+# face recognition serializer
+class UserFaceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserFace
+        fields = ['user', 'face_image']
