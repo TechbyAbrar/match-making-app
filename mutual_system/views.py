@@ -568,7 +568,6 @@ class UserStoriesAPIView(APIView):
         
         
 
-
 # faceapi/views.py
 class FaceScanView(APIView):
     def post(self, request, format=None):
@@ -626,7 +625,8 @@ class FaceScanView(APIView):
                 serializer.save()
 
             return Response(
-                {
+                {   
+                    "success": True,
                     "message": "Face registered successfully",
                     "faces_detected": len(face_locations),
                 },
@@ -636,6 +636,7 @@ class FaceScanView(APIView):
         except Exception as e:
             return Response(
                 {
+                    "success": False,
                     "error": "Face registration failed",
                     "details": str(e),
                 },
