@@ -75,7 +75,6 @@ from .models import Society, SocietyMember, SocietyMessage
 
 User = get_user_model()
 
-
 class SocietySerializer(serializers.ModelSerializer):
     class Meta:
         model = Society

@@ -1,12 +1,14 @@
 # run celery worker and celery beat in different terminal
 
+# terminal work
 source env/bin/activate
 celery -A core worker -l info
 
+# new terminal work
 source env/bin/activate
 celery -A core beat -l info
 
-
+# core terminal
 # run django as asgi
 gunicorn core.asgi:application \
   -k uvicorn.workers.UvicornWorker \
@@ -24,7 +26,7 @@ gunicorn core.asgi:application \
 
 
 
-# run redis
+# run redis -> another terminal
 redis-server --port 6379
 
 #verify redis

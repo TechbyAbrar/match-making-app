@@ -299,3 +299,116 @@ class SocietyConsumer(AsyncWebsocketConsumer):
             message_type=message_type,
             attachment=attachment,
         )
+
+
+
+
+# society/consumers.py
+
+import json
+import logging
+from django.shortcuts import get_object_or_404
+
+from channels.db import database_sync_to_async
+from channels.generic.websocket import AsyncWebsocketConsumer
+
+from .models import Society, SocietyMember, SocietyMessage
+from .serializers import SocietyMessageSerializer
+
+logger = logging.getLogger(__name__)
+
+class SocietyConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.user = self.scope.get("user")
+        self.society_id = self.scope["url_route"]["kwargs"]["society_id"]
+        self.group_name = f"society_{self.society_id}"
+
+        if not self.user or not self.user.is_authenticated:
+            await self.close(code=4001)
+            return
+
+        is_member = await self.is_society_member(self.society_id, self.user.pk)
+        if not is_member:
+            await self.close(code=4003)
+            return
+
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def receive(self, text_data=None, bytes_data=None):
+        data = json.loads(text_data or "{}")
+
+        if data.get("type") != "message.send":
+            await self.send_json({"success": False, "message": "Invalid event type"})
+            return
+
+        payload = data.get("payload", {})
+        await self.handle_message_send(payload)
+
+    async def handle_message_send(self, payload):
+        content = (payload.get("content") or "").strip()
+        attachment_url = payload.get("attachment")
+
+        if not content and not attachment_url:
+            await self.send_json({
+                "success": False,
+                "message": "Message must contain text or an attachment."
+            })
+            return
+
+        msg = await self.create_message(
+            user_pk=self.user.pk,
+            content=content,
+            attachment_url=attachment_url,
+        )
+
+        serialized = SocietyMessageSerializer(msg).data
+
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                "type": "society.message",
+                "data": serialized,
+            }
+        )
+
+    async def society_message(self, event):
+        await self.send(text_data=json.dumps({
+            "success": True,
+            "type": "message.new",
+            "data": event["data"],
+        }))
+
+    async def send_json(self, data):
+        await self.send(text_data=json.dumps(data))
+
+    # ================= DB =================
+
+    @database_sync_to_async
+    def is_society_member(self, society_id, user_pk):
+        return SocietyMember.objects.filter(
+            society_id=society_id,
+            user_id=user_pk,   # FK to User PK (user_id)
+        ).exists()
+
+    @database_sync_to_async
+    def create_message(self, user_pk, content, attachment_url):
+        society = get_object_or_404(Society, id=self.society_id)
+
+        message_type = "image" if attachment_url else "text"
+
+        msg = SocietyMessage.objects.create(
+            society=society,
+            sender_id=user_pk,   # FK uses user_id PK
+            content=content,
+            message_type=message_type,
+        )
+
+        if attachment_url:
+            msg.attachment = attachment_url.replace("/media/", "")
+            msg.save(update_fields=["attachment"])
+
+        return SocietyMessage.objects.select_related("sender").get(pk=msg.pk)
