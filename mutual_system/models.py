@@ -148,3 +148,10 @@ class Report(models.Model):
 
     def __str__(self):
         return f"Report({self.reporter_id} -> {self.reported_user_id} : {self.reason})"
+
+
+
+# Face recognition model
+class UserFace(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    face_image = models.ImageField(upload_to='faceverify/')
