@@ -1,8 +1,8 @@
+from decimal import Decimal
 from django.utils import timezone
-from django.db import transaction
 from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 
 from .models import Subscription
@@ -10,96 +10,92 @@ from .models import Subscription
 User = get_user_model()
 
 
+def ms_to_dt(ms):
+    if not ms:
+        return None
+    return timezone.datetime.fromtimestamp(int(ms) / 1000, tz=timezone.utc)
+
+
 class RevenueCatWebhookView(APIView):
     permission_classes = [AllowAny]
 
-    @transaction.atomic
     def post(self, request):
-        data = request.data or {}
-        event = data.get("event") or {}
+        payload = request.data or {}
+        event = payload.get("event") or {}
 
         event_type = event.get("type")
-        customer_id = event.get("app_user_id")
-        entitlement = event.get("entitlement_id")
-        expiration_at_ms = event.get("expiration_at_ms")
+        app_user_id = event.get("app_user_id")
 
         if not event_type:
-            return Response({"error": "Missing event.type"}, status=400)
+            return Response({"success": False, "message": "Missing event.type"}, status=400)
+        if not app_user_id:
+            return Response({"success": False, "message": "Missing event.app_user_id"}, status=400)
 
-        if not customer_id:
-            return Response({"error": "Missing event.app_user_id"}, status=400)
-
-        # app_user_id should match your User.user_id (AutoField)
+        # IMPORTANT: you said your app_user_id is your User ID (int)
         try:
-            user_id = int(customer_id)
+            user_id = int(app_user_id)
         except (TypeError, ValueError):
-            return Response({"error": "event.app_user_id must be an integer user_id"}, status=400)
+            return Response({"success": False, "message": "event.app_user_id must be an integer user id"}, status=400)
 
-        try:
-            user = User.objects.get(user_id=user_id)
-        except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=404)
+        user = User.objects.filter(id=user_id).first()
+        if not user:
+            return Response({"success": False, "message": "User not found"}, status=404)
 
-        # PURCHASE / RENEWAL
-        if event_type in ("INITIAL_PURCHASE", "RENEWAL"):
-            if not entitlement:
-                return Response({"error": "Missing event.entitlement_id"}, status=400)
+        # clean fields
+        event_id = event.get("id")
+        product_id = event.get("product_id")
+        entitlement_id = event.get("entitlement_id")
+        store = event.get("store")
 
-            if expiration_at_ms is None:
-                return Response({"error": "Missing event.expiration_at_ms"}, status=400)
+        currency = event.get("currency") or "USD"
+        price = Decimal(str(event.get("price") or "0"))
 
-            try:
-                expires_at = timezone.datetime.fromtimestamp(
-                    int(expiration_at_ms) / 1000,
-                    tz=timezone.utc
-                )
-            except (TypeError, ValueError, OSError):
-                return Response({"error": "Invalid event.expiration_at_ms"}, status=400)
+        purchased_at = ms_to_dt(event.get("purchased_at_ms"))
+        expires_at = ms_to_dt(event.get("expiration_at_ms"))
 
-            # Keep started_at if subscription exists already
-            sub, created = Subscription.objects.update_or_create(
-                user=user,
-                revenuecat_entitlement_id=entitlement,
+        # Plan name: use entitlement_id if present, else product_id
+        plan_name = entitlement_id or product_id or "Premium Plan"
+
+        # If event_id exists, store idempotently (prevents duplicates)
+        if event_id:
+            obj, created = Subscription.objects.get_or_create(
+                event_id=event_id,
                 defaults={
-                    "plan": entitlement,  # NOTE: entitlement must match your PLAN_CHOICES keys
-                    "revenuecat_customer_id": str(customer_id),
-                    "is_active": True,
+                    "user": user,
+                    "app_user_id": str(app_user_id),
+                    "event_type": event_type,
+                    "product_id": product_id,
+                    "entitlement_id": entitlement_id,
+                    "store": store,
+                    "plan_name": plan_name,
+                    "currency": currency,
+                    "plan_price": price,
+                    "purchased_at": purchased_at,
                     "expires_at": expires_at,
                 },
             )
-
-            if created or not sub.started_at:
-                sub.started_at = timezone.now()
-                sub.save(update_fields=["started_at"])
-
-            # Update User fields
-            user.is_subscribed = True
-            user.subscription_expiry = expires_at
-            user.save(update_fields=["is_subscribed", "subscription_expiry"])
-
-            return Response({"status": "success", "event": event_type})
-
-        # CANCELLATION / EXPIRATION
-        if event_type in ("CANCELLATION", "EXPIRATION"):
-            # entitlement can be missing sometimes depending on event; handle both cases
-            qs = Subscription.objects.filter(user=user)
-            if entitlement:
-                qs = qs.filter(revenuecat_entitlement_id=entitlement)
-
-            qs.update(is_active=False)
-
-            # If user still has any active subscription, keep is_subscribed True
-            has_active = Subscription.objects.filter(user=user, is_active=True).exists()
-            user.is_subscribed = has_active
-            user.subscription_expiry = (
-                Subscription.objects.filter(user=user, is_active=True)
-                .order_by("-expires_at")
-                .values_list("expires_at", flat=True)
-                .first()
+            return Response(
+                {
+                    "success": True,
+                    "message": "Stored" if created else "Already stored",
+                    "data": {"id": obj.id, "event": event_type},
+                },
+                status=200,
             )
-            user.save(update_fields=["is_subscribed", "subscription_expiry"])
 
-            return Response({"status": "success", "event": event_type})
+        # If no event_id in payload, just create (may duplicate if webhook repeats)
+        obj = Subscription.objects.create(
+            user=user,
+            app_user_id=str(app_user_id),
+            event_type=event_type,
+            product_id=product_id,
+            entitlement_id=entitlement_id,
+            store=store,
+            plan_name=plan_name,
+            currency=currency,
+            plan_price=price,
+            purchased_at=purchased_at,
+            expires_at=expires_at,
+        )
 
-        # Other events ignored safely
-        return Response({"status": "ignored", "event": event_type})
+        return Response({"success": True, "message": "Stored", "data": {"id": obj.id, "event": event_type}}, status=200)

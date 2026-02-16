@@ -34,3 +34,9 @@ redis-cli ping
 
 
 # should return: PONG
+
+# port checking
+sudo lsof -t -i:8000
+
+#kill port
+sudo kill -9 <pid>
