@@ -1,14 +1,23 @@
+from __future__ import annotations
+
 from decimal import Decimal
-from django.utils import timezone
-from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
+from typing import Any
+
 from django.contrib.auth import get_user_model
+from django.db.models import Sum
+from django.utils import timezone
+
+from rest_framework.permissions import IsAdminUser, AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import Subscription
+from .pagination import DashboardUserPagination
 
 User = get_user_model()
 
+
+User = get_user_model()
 
 def ms_to_dt(ms):
     if not ms:
@@ -99,3 +108,66 @@ class RevenueCatWebhookView(APIView):
         )
 
         return Response({"success": True, "message": "Stored", "data": {"id": obj.id, "event": event_type}}, status=200)
+
+
+
+
+
+# dashboard api
+class AdminDashboardAPIView(APIView):
+    permission_classes = [IsAdminUser]
+    pagination_class = DashboardUserPagination
+
+    def get(self, request, *args: Any, **kwargs: Any) -> Response:
+        now = timezone.now()
+
+        # ---- Stats (cheap aggregate queries) ----
+        total_users = User.objects.count()
+
+        # Choose one definition:
+        total_subscribers = User.objects.filter(is_subscribed=True).count()
+        # or active only:
+        # total_subscribers = User.objects.filter(is_subscribed=True, subscription_expiry__gte=now).count()
+
+        total_earning = (
+            Subscription.objects
+            .aggregate(total=Sum("plan_price"))
+            .get("total")
+        ) or Decimal("0.00")
+
+        stats = {
+            "total_users": total_users,
+            "total_subscribers": total_subscribers,
+            "total_earning": total_earning,
+        }
+
+        # ---- Users list (paginated, minimal fields) ----
+        qs = (
+            User.objects
+            .order_by("-created_at")
+            .values("user_id", "full_name", "username", "email", "created_at")
+        )
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(qs, request, view=self)
+
+        users_data = [
+            {
+                "user_id": row["user_id"],
+                "full_name": row["full_name"],
+                "username": row["username"],
+                "email": row["email"],
+                "join_date": row["created_at"],
+            }
+            for row in page
+        ]
+
+        # Build paginated response manually to include stats
+        paginated = paginator.get_paginated_response(users_data).data
+
+        return Response({
+            "success": True,
+            "message": "Dashboard data fetched.",
+            "stats": stats,
+            "users": paginated,   # contains count, next, previous, results
+        }, status=200)
