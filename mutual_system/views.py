@@ -663,7 +663,11 @@ class NotificationListView(APIView):
     def get(self, request):
         notifications = Notification.objects.filter(recipient=request.user).order_by('-created_at')[:50]
         serializer = NotificationSerializer(notifications, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({
+            "success": True,
+            "message": "Notifications fetched successfully",
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
 
 
 class NotificationMarkReadView(APIView):
@@ -672,11 +676,20 @@ class NotificationMarkReadView(APIView):
     def post(self, request, pk):
         notification = get_object_or_404(Notification, pk=pk)
         if notification.recipient != request.user:
-            return Response({"detail": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+            return Response({
+                "success": False,
+                "message": "You do not have permission to modify this notification",
+                "data": None
+            }, status=status.HTTP_403_FORBIDDEN)
+
         notification.is_read = True
         notification.save(update_fields=['is_read'])
         serializer = NotificationSerializer(notification)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({
+            "success": True,
+            "message": "Notification marked as read",
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
 
 
 class NotificationUnreadCountView(APIView):
@@ -684,4 +697,8 @@ class NotificationUnreadCountView(APIView):
 
     def get(self, request):
         count = Notification.objects.filter(recipient=request.user, is_read=False).count()
-        return Response({"unread_count": count}, status=status.HTTP_200_OK)
+        return Response({
+            "success": True,
+            "message": "Unread notifications count fetched successfully",
+            "data": {"unread_count": count}
+        }, status=status.HTTP_200_OK)

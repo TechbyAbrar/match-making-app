@@ -27,6 +27,7 @@ urlpatterns = [
         path('privacy/', include('privacy.urls')),
         path('mutual-system/', include('mutual_system.urls')),
         path('chat/', include('chat.urls')),
+        path('subscription/', include('subscription.urls')),
     ])),
 ]
 

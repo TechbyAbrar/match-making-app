@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'privacy',
     'mutual_system',
     'chat',
+    'subscription',
 ]
 
 
