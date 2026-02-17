@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Any
 
 from django.contrib.auth import get_user_model
-from django.db.models import Sum
+from django.db.models import OuterRef, Subquery, Sum
 from django.utils import timezone
 
 from rest_framework.permissions import IsAdminUser, AllowAny
@@ -111,8 +111,6 @@ class RevenueCatWebhookView(APIView):
 
 
 
-
-
 # dashboard api
 class AdminDashboardAPIView(APIView):
     permission_classes = [IsAdminUser]
@@ -121,13 +119,9 @@ class AdminDashboardAPIView(APIView):
     def get(self, request, *args: Any, **kwargs: Any) -> Response:
         now = timezone.now()
 
-        # ---- Stats (cheap aggregate queries) ----
+        # ---- Stats ----
         total_users = User.objects.count()
-
-        # Choose one definition:
         total_subscribers = User.objects.filter(is_subscribed=True).count()
-        # or active only:
-        # total_subscribers = User.objects.filter(is_subscribed=True, subscription_expiry__gte=now).count()
 
         total_earning = (
             Subscription.objects
@@ -141,11 +135,34 @@ class AdminDashboardAPIView(APIView):
             "total_earning": total_earning,
         }
 
-        # ---- Users list (paginated, minimal fields) ----
+        # ---- Subqueries: latest subscription per user ----
+        latest_sub = (
+            Subscription.objects
+            .filter(user_id=OuterRef("pk"))
+            .order_by("-created_at")  # or "-purchased_at" if you prefer
+        )
+
+        # ---- Users list (paginated) ----
         qs = (
             User.objects
             .order_by("-created_at")
-            .values("user_id", "full_name", "username", "email", "created_at")
+            .annotate(
+                plan_name=Subquery(latest_sub.values("plan_name")[:1]),
+                plan_price=Subquery(latest_sub.values("plan_price")[:1]),
+                currency=Subquery(latest_sub.values("currency")[:1]),
+                sub_expires_at=Subquery(latest_sub.values("expires_at")[:1]),
+            )
+            .values(
+                "user_id",
+                "full_name",
+                "username",
+                "email",
+                "created_at",
+                "plan_name",
+                "plan_price",
+                "currency",
+                "sub_expires_at",
+            )
         )
 
         paginator = self.pagination_class()
@@ -158,16 +175,22 @@ class AdminDashboardAPIView(APIView):
                 "username": row["username"],
                 "email": row["email"],
                 "join_date": row["created_at"],
+                "plan_name": row["plan_name"],          # may be None
+                "plan_price": row["plan_price"],        # may be None
+                "currency": row["currency"],            # may be None
+                "expires_at": row["sub_expires_at"],    # may be None
             }
             for row in page
         ]
 
-        # Build paginated response manually to include stats
         paginated = paginator.get_paginated_response(users_data).data
 
-        return Response({
-            "success": True,
-            "message": "Dashboard data fetched.",
-            "stats": stats,
-            "users": paginated,   # contains count, next, previous, results
-        }, status=200)
+        return Response(
+            {
+                "success": True,
+                "message": "Dashboard data fetched.",
+                "stats": stats,
+                "users": paginated,
+            },
+            status=200,
+        )
