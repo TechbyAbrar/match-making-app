@@ -108,6 +108,7 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
     
     dob = models.DateField(blank=True, null=True)
     
+    country = models.CharField(max_length=100, blank=True, null=True)
     city = models.CharField(max_length=100, blank=True, null=True)
     province = models.CharField(max_length=100, blank=True, null=True)
     location = models.CharField(max_length=255, blank=True, null=True)

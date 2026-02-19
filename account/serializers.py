@@ -358,6 +358,7 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
             "height_feet",
             "height_inches",
             "dob",
+            'country',
             "city",
             "province",
             "location",
