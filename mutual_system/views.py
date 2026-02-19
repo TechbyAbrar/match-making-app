@@ -21,6 +21,7 @@ from rest_framework.permissions import (
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 from core.utils import ResponseHandler
 
@@ -61,6 +62,7 @@ class SmallPagination(PageNumberPagination):
 # ------------------ POST STORY ------------------
 class StoryCreateAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     @transaction.atomic
     def post(self, request):

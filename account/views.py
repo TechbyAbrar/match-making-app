@@ -364,6 +364,49 @@ class GlobalFeedPagination(PageNumberPagination):
     page_size_query_param = "page_size"
     max_page_size = 50
 
+# class GlobalFeedAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request):
+#         try:
+#             current_user = request.user
+
+#             users_qs = User.objects.filter(is_active=True).exclude(pk=current_user.pk).only(
+#                 "user_id", "username", "full_name", "is_online", "hobbies"
+#             )
+
+#             paginator = GlobalFeedPagination()
+#             page = paginator.paginate_queryset(users_qs, request)
+
+#             feed_data = []
+#             for user in page:
+#                 # Only last updated pop image
+#                 last_image = user.pop_images.order_by("-updated_at").first()
+#                 pop_images_serialized = MakeYourProfilePopSerializer(
+#                     [last_image], many=True, context={"request": request}
+#                 ).data if last_image else []
+
+#                 feed_data.append({
+#                     "user_id": user.user_id,
+#                     "username": user.username or "",
+#                     "full_name": user.full_name or "",
+#                     "is_online": user.is_online,
+#                     "hobbies": user.hobbies or [],
+#                     "pop_images": pop_images_serialized,
+#                 })
+
+#             return ResponseHandler.success(
+#                 message="Global feed fetched successfully.",
+#                 data=paginator.get_paginated_response(feed_data).data
+#             )
+
+#         except Exception as exc:
+#             return ResponseHandler.server_error(
+#                 message="Failed to fetch global feed.",
+#                 errors=str(exc)
+#             )
+
+
 class GlobalFeedAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -371,8 +414,26 @@ class GlobalFeedAPIView(APIView):
         try:
             current_user = request.user
 
-            users_qs = User.objects.filter(is_active=True).exclude(pk=current_user.pk).only(
-                "user_id", "username", "full_name", "is_online", "hobbies"
+            # ✅ include everyone (even if they have 0/1/2 pop images)
+            users_qs = (
+                User.objects.filter(is_active=True)
+                .exclude(pk=current_user.pk)
+                .only(
+                    "user_id",
+                    "username",
+                    "full_name",
+                    "is_online",
+                    "hobbies",
+                    "dob",
+                    "bio",
+                    "location",
+                    "looking_for",
+                )
+                # ✅ prefetch ALL pop images efficiently (ordered)
+                .prefetch_related(
+                    Prefetch("pop_images", queryset=MakeYourProfilePop.objects.order_by("-updated_at"))
+                )
+                .order_by("-updated_at")
             )
 
             paginator = GlobalFeedPagination()
@@ -380,11 +441,11 @@ class GlobalFeedAPIView(APIView):
 
             feed_data = []
             for user in page:
-                # Only last updated pop image
-                last_image = user.pop_images.order_by("-updated_at").first()
+                pop_images_qs = user.pop_images.all()  # ✅ ALL images
+
                 pop_images_serialized = MakeYourProfilePopSerializer(
-                    [last_image], many=True, context={"request": request}
-                ).data if last_image else []
+                    pop_images_qs, many=True, context={"request": request}
+                ).data
 
                 feed_data.append({
                     "user_id": user.user_id,
@@ -392,7 +453,14 @@ class GlobalFeedAPIView(APIView):
                     "full_name": user.full_name or "",
                     "is_online": user.is_online,
                     "hobbies": user.hobbies or [],
-                    "pop_images": pop_images_serialized,
+
+                    # ✅ new fields
+                    "age": user.age,  # your @property age
+                    "bio": user.bio or "",
+                    "location": user.location or "",
+                    "looking_for": user.looking_for or [],
+
+                    "pop_images": pop_images_serialized,  # [] if none
                 })
 
             return ResponseHandler.success(
@@ -405,7 +473,6 @@ class GlobalFeedAPIView(APIView):
                 message="Failed to fetch global feed.",
                 errors=str(exc)
             )
-
 
 # get a user profile by username
 class UserDetailsProfileAPIView(APIView):
