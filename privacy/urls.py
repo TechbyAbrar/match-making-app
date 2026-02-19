@@ -16,4 +16,4 @@ urlpatterns = [
     
     #thoughts
     path('thoughts/', ShareThoughtsView.as_view(), name='share-thoughts'),
-]
+]   

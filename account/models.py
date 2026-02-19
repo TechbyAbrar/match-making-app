@@ -92,9 +92,9 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
     
 
     gender = models.CharField(max_length=20, choices=GENDER_CHOICES, blank=True, null=True)
-    brings = MultiSelectField(max_length=50, choices=BRINGS_CHOICES, blank=True, null=True)
-    that = MultiSelectField(max_length=50, choices=THAT_CHOICES, blank=True, null=True)
-    looking_for = MultiSelectField(max_length=50, choices=LOOKING_FOR_CHOICES, blank=True, null=True)
+    brings = MultiSelectField(max_length=255, choices=BRINGS_CHOICES, blank=True, null=True)
+    that = MultiSelectField(max_length=255, choices=THAT_CHOICES, blank=True, null=True)
+    looking_for = MultiSelectField(max_length=255, choices=LOOKING_FOR_CHOICES, blank=True, null=True)
     
     professional_field = models.JSONField(default=list, blank=True, null=True)
     interests = models.JSONField(default=list, blank=True, null=True)

@@ -95,6 +95,7 @@ class BaseSingleObjectView(SingleObjectViewMixin, generics.RetrieveUpdateAPIView
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+# privacy
 
 class PrivacyPolicyView(BaseSingleObjectView):
     queryset = PrivacyPolicy.objects.all()
