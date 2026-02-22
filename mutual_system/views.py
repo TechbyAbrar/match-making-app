@@ -203,7 +203,7 @@ class GlobalStoriesAPIView(APIView):
                 expires_at__gt=timezone.now(),
                 is_deleted=False
             ).select_related('user').only(
-                'id', 'text', 'media', 'view_count', 'created_at', 'expires_at', 'user__username'
+                'id', 'text', 'media', 'view_count', 'created_at', 'expires_at', 'user__username', 'user__full_name',
             )
 
             # Exclude current user's stories if authenticated

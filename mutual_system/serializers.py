@@ -11,13 +11,14 @@ User = get_user_model()
 # STORY SERIALIZERS
 class StorySerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField(read_only=True)
+    user_full_name = serializers.CharField(source="user.full_name", read_only=True)
     view_count = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
     likes_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Story
-        fields = ['id', 'user', 'text', 'media', 'view_count', 'likes_count', 'is_liked', 'created_at', 'expires_at']
+        fields = ['id', 'user','user_full_name', 'text', 'media', 'view_count', 'likes_count', 'is_liked', 'created_at', 'expires_at']
 
     def get_view_count(self, obj):
         return obj.view_count + get_story_view_count(obj.id)

@@ -3,6 +3,7 @@ from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
 from django.utils import timezone
 from .utils import generate_username, send_otp_email, generate_tokens_for_user, generate_otp, get_otp_expiry
+from .models import UserLike
 from django.contrib.auth import get_user_model
 User = get_user_model()
 from django.conf import settings
@@ -34,6 +35,7 @@ class UserSerializer(serializers.ModelSerializer):
     height_inches_total = serializers.SerializerMethodField()
     age = serializers.ReadOnlyField()  # uses @property age
     profile_link = serializers.ReadOnlyField()
+    is_liked_profile = serializers.SerializerMethodField()   # ✅ add this
 
     class Meta:
         model = UserAuth
@@ -85,6 +87,7 @@ class UserSerializer(serializers.ModelSerializer):
             "updated_at",
 
             "profile_link",
+            "is_liked_profile",
         ]
 
         read_only_fields = [
@@ -114,6 +117,17 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_height_inches_total(self, obj):
         return obj.height_in_inches()
+    
+    def get_is_liked_profile(self, obj):
+        request = self.context.get("request")
+        if not request or request.user.is_anonymous:
+            return False
+
+        # if someone is viewing their own profile
+        if request.user.pk == obj.pk:
+            return False
+
+        return UserLike.objects.filter(user_from=request.user, user_to=obj).exists()
 
         
 class SignupSerialzier(serializers.Serializer):

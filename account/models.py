@@ -1,14 +1,14 @@
-from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
-from django.utils import timezone
-from django.core.validators import RegexValidator
 from .managers import UserManager
 from .utils import generate_otp, get_otp_expiry, validate_image
 from multiselectfield import MultiSelectField
 from django.conf import settings
 from datetime import date
 
-
+from django.db import models
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.utils import timezone
+from django.core.validators import RegexValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 class UserAuth(AbstractBaseUser, PermissionsMixin):
     class Meta:
@@ -123,6 +123,21 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
     last_login = models.DateTimeField(blank=True, null=True)
     last_activity = models.DateTimeField(blank=True, null=True, db_index=True)
     
+    
+    
+    latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        validators=[MinValueValidator(-90), MaxValueValidator(90)],
+        db_index=True,
+    )
+    longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True,
+        validators=[MinValueValidator(-180), MaxValueValidator(180)],
+        db_index=True,
+    )
+    location_updated_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    
+        
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -174,10 +189,21 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
         base = settings.SITE_BASE_URL.rstrip("/")
         return f"{base}/{self.username}"
     
+    @property
+    def geo(self):
+        if self.latitude is None or self.longitude is None:
+            return None
+        return {
+            "lat": float(self.latitude),
+            "lng": float(self.longitude),
+        }
+    
+    
     
 # global feed pop images for user profiles
 from django.contrib.auth import get_user_model
 User = get_user_model()
+
 class MakeYourProfilePop(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="pop_images")
     image = models.ImageField(

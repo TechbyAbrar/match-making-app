@@ -426,6 +426,7 @@ class GlobalFeedAPIView(APIView):
                     "hobbies",
                     "dob",
                     "bio",
+                    'distance',
                     "location",
                     "looking_for",
                 )
@@ -457,6 +458,7 @@ class GlobalFeedAPIView(APIView):
                     # ✅ new fields
                     "age": user.age,  # your @property age
                     "bio": user.bio or "",
+                    'distance': user.distance or None,
                     "location": user.location or "",
                     "looking_for": user.looking_for or [],
 

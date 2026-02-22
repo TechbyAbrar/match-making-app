@@ -28,7 +28,7 @@ def notify_user_like(sender, instance: UserLike, created: bool, **kwargs):
             sender=instance.user_from,
             type='USER_LIKE',
             message=f"{instance.user_from.username} liked your profile.",
-            metadata={'user_from_id': instance.user_from.id}
+            metadata={'user_from_id': instance.user_from.user_id}
         )
 
 
