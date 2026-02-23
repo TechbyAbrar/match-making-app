@@ -67,6 +67,10 @@ class MessageListCreateAPIView(APIView):
 
         if request.user.pk not in [thread.user_a_id, thread.user_b_id]:
             return ResponseHandler.forbidden(message="You are not a participant in this thread.")
+        
+        # added two lines to reset unread count when messages are fetched
+        key = f"chat:unread:{request.user.pk}:{thread.pk}"
+        cache.set(key, 0, timeout=7 * 24 * 3600)
 
         messages = (
             Message.objects.filter(thread=thread)

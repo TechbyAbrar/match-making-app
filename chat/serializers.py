@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import ChatThread, Message, MessageReaction, SocietyMember, SocietyMessage, Society
-
+from django.core.cache import cache
 User = get_user_model()
 
 class SimpleUserSerializer(serializers.ModelSerializer):
@@ -50,10 +50,12 @@ class ThreadListSerializer(serializers.ModelSerializer):
     thread_id = serializers.IntegerField(source="id", read_only=True)
     other_user = serializers.SerializerMethodField()
     last_message = serializers.SerializerMethodField()
+    
+    unread_count = serializers.SerializerMethodField()
 
     class Meta:
         model = ChatThread
-        fields = ["thread_id", "other_user", "updated_at", "last_message"]
+        fields = ["thread_id", "other_user", "updated_at", "last_message", "unread_count"]
 
     def get_other_user(self, obj):
         request_user = self.context.get("request").user
@@ -65,6 +67,14 @@ class ThreadListSerializer(serializers.ModelSerializer):
     def get_last_message(self, obj):
         last = obj.messages.order_by("-created_at").first()
         return MessageSerializer(last).data if last else None
+    
+    def get_unread_count(self, obj):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return 0
+
+        key = f"chat:unread:{request.user.pk}:{obj.pk}"
+        return int(cache.get(key) or 0)
 
 
 
