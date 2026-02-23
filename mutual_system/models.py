@@ -61,6 +61,28 @@ class StoryLike(models.Model):
         return f"Like(story={self.story_id}, user={self.user_id})"
 
 
+class StoryView(models.Model):
+    story = models.ForeignKey(Story, on_delete=models.CASCADE, related_name="views")
+    viewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="story_views"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        # count only once per viewer per story (like Instagram)
+        constraints = [
+            models.UniqueConstraint(fields=["story", "viewer"], name="uniq_story_viewer")
+        ]
+        indexes = [
+            models.Index(fields=["story", "-created_at"]),
+            models.Index(fields=["viewer", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"View(story={self.story_id}, viewer={self.viewer_id})"
+
 # PROFILE SHARING MODEL
 
 class ProfileShare(models.Model):

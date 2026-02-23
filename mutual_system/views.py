@@ -101,7 +101,6 @@ class MyStoriesAPIView(APIView):
             logger.exception(f"Error fetching stories for user {request.user.user_id}")
             return ResponseHandler.generic_error(exception=e)
 
-
 # ------------------ DELETE STORY ------------------
 class StoryDeleteAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -180,7 +179,7 @@ class StoryViewersAPIView(APIView):
             offset = (page - 1) * limit
 
             viewer_ids, total = get_story_viewers(story_id, offset, limit)
-            viewers = User.objects.filter(user_id__in=viewer_ids).only('user_id', 'full_name', 'profile_pic')
+            viewers = User.objects.filter(user_id__in=viewer_ids).only('user_id', 'full_name', 'profile_pic',)
 
             data = [{"id": u.user_id,"full_name": u.full_name,"profile_pic": u.profile_pic.url if u.profile_pic else None} for u in viewers]
             return ResponseHandler.success(
