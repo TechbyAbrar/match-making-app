@@ -113,6 +113,7 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
     province = models.CharField(max_length=100, blank=True, null=True)
     location = models.CharField(max_length=255, blank=True, null=True)
     
+    #user preference radius (slider)
     distance = models.PositiveIntegerField(blank=True, null=True)  # in miles/km
     
     

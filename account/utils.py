@@ -1,6 +1,7 @@
 import random
 import string
 import logging
+import math
 from datetime import timedelta
 
 import requests
@@ -13,6 +14,7 @@ from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework import status
+
 
 from typing import Any, Dict, Mapping, Optional
 
@@ -134,4 +136,21 @@ def validate_google_token(id_token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+#distance calculation using Haversine formula
+def haversine_km(lat1, lon1, lat2, lon2):
+    if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+        return None
 
+    lat1 = float(lat1); lon1 = float(lon1)
+    lat2 = float(lat2); lon2 = float(lon2)
+
+    R = 6371.0  # KM
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+
+    a = (math.sin(dphi / 2) ** 2
+         + math.cos(phi1) * math.cos(phi2) * (math.sin(dlambda / 2) ** 2))
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c

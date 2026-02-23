@@ -10,16 +10,17 @@ User = get_user_model()
 
 # STORY SERIALIZERS
 class StorySerializer(serializers.ModelSerializer):
-    user= serializers.StringRelatedField(read_only=True)
+    # user= serializers.StringRelatedField(read_only=True)
     user_id = serializers.IntegerField(source="user.user_id", read_only=True)
-    user_full_name = serializers.CharField(source="user.full_name", read_only=True)
+    full_name = serializers.CharField(source="user.full_name", read_only=True)
     view_count = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
     likes_count = serializers.SerializerMethodField()
+    profile_pic = serializers.SerializerMethodField()
 
     class Meta:
         model = Story
-        fields = ['id', 'user', 'user_id', 'user_full_name', 'text', 'media',  'view_count', 'likes_count', 'is_liked', 'created_at', 'expires_at']
+        fields = ['id', 'user_id', 'full_name', 'text', 'media',  'view_count', 'likes_count', 'is_liked', 'profile_pic', 'created_at', 'expires_at']
 
     def get_view_count(self, obj):
         return obj.view_count + get_story_view_count(obj.id)
@@ -39,6 +40,13 @@ class StorySerializer(serializers.ModelSerializer):
         Returns the total number of likes for the story.
         """
         return obj.likes_count  # use cached field for efficiency
+    
+    def get_profile_pic(self, obj):
+        request = self.context.get("request")
+        if not obj.user.profile_pic:
+            return None
+        url = obj.user.profile_pic.url
+        return request.build_absolute_uri(url) if request else url
 
 
 class CreateStorySerializer(serializers.ModelSerializer):

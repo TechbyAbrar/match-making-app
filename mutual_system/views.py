@@ -81,22 +81,99 @@ class StoryCreateAPIView(APIView):
 
 
 # ------------------ GET MY STORIES ------------------
+# class MyStoriesAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request):
+#         try:
+#             stories = Story.objects.filter(
+#                 user=request.user,
+#                 expires_at__gt=timezone.now(),
+#                 is_deleted=False
+#             ).only('id', 'text', 'media', 'view_count', 'created_at', 'expires_at')
+            
+#             return ResponseHandler.success(
+#                 message="Fetched user stories successfully.",
+#                 data=StorySerializer(stories, many=True).data,
+#                 extra={"count": stories.count()}
+#             )
+#         except Exception as e:
+#             logger.exception(f"Error fetching stories for user {request.user.user_id}")
+#             return ResponseHandler.generic_error(exception=e)
+
+from collections import defaultdict
+from django.db.models import Count, F, Window
+from django.db.models.functions import RowNumber
+from django.utils import timezone
+
 class MyStoriesAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         try:
-            stories = Story.objects.filter(
-                user=request.user,
-                expires_at__gt=timezone.now(),
-                is_deleted=False
-            ).only('id', 'text', 'media', 'view_count', 'created_at', 'expires_at')
-            
+            viewers_limit = int(request.query_params.get("viewers_limit", 20))
+
+            # 1) Fetch active stories + total unique views per story
+            stories_qs = (
+                Story.objects.filter(
+                    user=request.user,
+                    expires_at__gt=timezone.now(),
+                    is_deleted=False
+                )
+                .annotate(total_views=Count("views", distinct=True))  # StoryView related_name="views"
+                .only("id", "text", "media", "view_count", "created_at", "expires_at")
+                .order_by("-created_at")
+            )
+
+            stories = list(stories_qs)
+            story_ids = [s.id for s in stories]
+
+            # 2) Fetch top N viewers per story (PostgreSQL window function)
+            views_qs = (
+                StoryView.objects.filter(story_id__in=story_ids)
+                .select_related("viewer")
+                .annotate(
+                    rn=Window(
+                        expression=RowNumber(),
+                        partition_by=[F("story_id")],
+                        order_by=F("created_at").desc(),
+                    )
+                )
+                .filter(rn__lte=viewers_limit)
+                .order_by("story_id", "-created_at")
+            )
+
+            viewers_map = defaultdict(list)
+
+            for v in views_qs:
+                viewer = v.viewer
+                viewers_map[v.story_id].append({
+                    "user_id": viewer.user_id,
+                    "full_name": viewer.full_name,
+                    "profile_pic": viewer.profile_pic.url if viewer.profile_pic else None,
+                    "distance": viewer.distance,  # 👈 directly from UserAuth
+                })
+
+            # Build response
+            data = []
+            for s in stories:
+                data.append({
+                    "id": str(s.id),
+                    "text": s.text,
+                    "media": s.media.url if s.media else None,
+                    "view_count": s.view_count,
+                    "total_views": s.total_views,
+                    "created_at": s.created_at,
+                    "expires_at": s.expires_at,
+                    "viewers": viewers_map.get(s.id, []),
+                })
+
             return ResponseHandler.success(
                 message="Fetched user stories successfully.",
-                data=StorySerializer(stories, many=True).data,
-                extra={"count": stories.count()}
+                data=data,
+                extra={"count": len(data), "viewers_limit": viewers_limit}
             )
+
         except Exception as e:
             logger.exception(f"Error fetching stories for user {request.user.user_id}")
             return ResponseHandler.generic_error(exception=e)
@@ -116,16 +193,66 @@ class StoryDeleteAPIView(APIView):
             logger.exception(f"Error deleting story {story_id} for user {request.user.user_id}")
             return ResponseHandler.generic_error(exception=e)
 
+# class StoryViewAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     @transaction.atomic
+#     def post(self, request, story_id):
+#         """
+#         Record a story view and return other active stories by the same user.
+#         """
+#         try:
+#             # Fetch the story by UUID
+#             story = get_object_or_404(
+#                 Story,
+#                 id=story_id,
+#                 expires_at__gt=timezone.now(),
+#                 is_deleted=False
+#             )
+
+#             # Prevent users from viewing their own story
+#             if story.user.user_id == request.user.user_id:
+#                 return ResponseHandler.bad_request(message="You cannot view your own story.")
+
+#             # Record the view
+#             add_story_view(story_id, request.user.user_id)
+
+#             # Fetch other active stories by the same user (exclude current one)
+#             other_stories = Story.objects.filter(
+#                 user__user_id=story.user.user_id,
+#                 expires_at__gt=timezone.now(),
+#                 is_deleted=False
+#             ).exclude(id=story_id).order_by('created_at')
+
+#             # Serialize other stories
+#             serialized_stories = StorySerializer(
+#                 other_stories,
+#                 many=True,
+#                 context={'request': request}
+#             ).data
+
+#             return ResponseHandler.success(
+#                 message="View recorded.",
+#                 data={
+#                     "story_id": str(story.id),  # UUID string
+#                     "user_id": story.user.user_id,  # use user_id
+#                     "other_stories": serialized_stories
+#                 }
+#             )
+
+#         except Exception as e:
+#             logger.exception(f"Error recording view for story {story_id} by user {request.user.user_id}")
+#             return ResponseHandler.generic_error(exception=e)
+
+
+from .models import StoryView
+from django.db.models import F
 class StoryViewAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     @transaction.atomic
     def post(self, request, story_id):
-        """
-        Record a story view and return other active stories by the same user.
-        """
         try:
-            # Fetch the story by UUID
             story = get_object_or_404(
                 Story,
                 id=story_id,
@@ -134,20 +261,28 @@ class StoryViewAPIView(APIView):
             )
 
             # Prevent users from viewing their own story
-            if story.user.user_id == request.user.user_id:
+            if story.user_id == request.user.user_id:  # or story.user.user_id == request.user.user_id (depending on your AUTH model)
                 return ResponseHandler.bad_request(message="You cannot view your own story.")
 
-            # Record the view
-            add_story_view(story_id, request.user.user_id)
+            # Create DB view (idempotent)
+            view, created = StoryView.objects.get_or_create(
+                story=story,
+                viewer=request.user,
+            )
 
-            # Fetch other active stories by the same user (exclude current one)
+            # Increment view_count only on first view by this viewer
+            if created:
+                Story.objects.filter(id=story.id).update(view_count=F("view_count") + 1)
+
+            # OPTIONAL: keep Redis cache too (not required anymore)
+            # add_story_view(str(story.id), request.user.user_id)
+
             other_stories = Story.objects.filter(
-                user__user_id=story.user.user_id,
+                user=story.user,
                 expires_at__gt=timezone.now(),
                 is_deleted=False
-            ).exclude(id=story_id).order_by('created_at')
+            ).exclude(id=story.id).order_by('created_at')
 
-            # Serialize other stories
             serialized_stories = StorySerializer(
                 other_stories,
                 many=True,
@@ -157,9 +292,10 @@ class StoryViewAPIView(APIView):
             return ResponseHandler.success(
                 message="View recorded.",
                 data={
-                    "story_id": str(story.id),  # UUID string
-                    "user_id": story.user.user_id,  # use user_id
-                    "other_stories": serialized_stories
+                    "story_id": str(story.id),
+                    "user_id": story.user.user_id,  # keep your API contract
+                    "other_stories": serialized_stories,
+                    "is_new_view": created,  # helpful for frontend/debugging
                 }
             )
 
