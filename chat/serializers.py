@@ -1,13 +1,17 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import ChatThread, Message, MessageReaction, SocietyMember, SocietyMessage, Society
+from collections import defaultdict
+from django.db.models import F, Window
+from django.db.models.functions import RowNumber, Random
+from rest_framework import serializers
 from django.core.cache import cache
 User = get_user_model()
 
 class SimpleUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["user_id", "email", "username", "full_name", "profile_pic"]  # updated id → user_id
+        fields = ["user_id", "email", "username", "full_name", "profile_pic", 'is_online']  # updated id → user_id
 
 
 
@@ -85,11 +89,82 @@ from .models import Society, SocietyMember, SocietyMessage
 
 User = get_user_model()
 
+# class SocietySerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = Society
+#         fields = ["id", "name", "image", "created_by", "created_at"]
+#         read_only_fields = ["id", "created_by", "created_at"]
+
+#     def create(self, validated_data):
+#         user = self.context["request"].user
+#         validated_data["created_by"] = user
+#         society = super().create(validated_data)
+#         SocietyMember.objects.create(society=society, user=user, is_admin=True)
+#         return society
+
+
 class SocietySerializer(serializers.ModelSerializer):
+    member_count = serializers.IntegerField(read_only=True)
+    random_member_images = serializers.SerializerMethodField()
+
     class Meta:
         model = Society
-        fields = ["id", "name", "image", "created_by", "created_at"]
-        read_only_fields = ["id", "created_by", "created_at"]
+        fields = ["id", "name", "image", "created_by", "created_at", "member_count", "random_member_images"]
+        read_only_fields = ["id", "created_by", "created_at", "member_count", "random_member_images"]
+
+    def _random_images_map(self):
+        """
+        Build {society_id: [pic1..pic5]} once for the whole list serialization.
+        """
+        if hasattr(self, "_cached_random_images_map"):
+            return self._cached_random_images_map
+
+        instance = self.instance
+        if not instance:
+            self._cached_random_images_map = {}
+            return self._cached_random_images_map
+
+        # instance can be queryset/list or single object
+        if hasattr(instance, "__iter__"):
+            society_ids = [s.id for s in instance]
+        else:
+            society_ids = [instance.id]
+
+        qs = (
+            SocietyMember.objects
+            .filter(society_id__in=society_ids)
+            .select_related("user")
+            .annotate(
+                rn=Window(
+                    expression=RowNumber(),
+                    partition_by=[F("society_id")],
+                    order_by=Random(),
+                )
+            )
+            .filter(rn__lte=5)
+            .values("society_id", "user__profile_pic")
+        )
+
+        mp = defaultdict(list)
+        request = self.context.get("request")
+
+        for row in qs:
+            pic = row["user__profile_pic"]
+            if not pic:
+                continue
+
+            # If stored as "/media/..", make absolute URL
+            pic_str = str(pic)
+            if request and pic_str.startswith("/"):
+                pic_str = request.build_absolute_uri(pic_str)
+
+            mp[row["society_id"]].append(pic_str)
+
+        self._cached_random_images_map = dict(mp)
+        return self._cached_random_images_map
+
+    def get_random_member_images(self, obj):
+        return self._random_images_map().get(obj.id, [])
 
     def create(self, validated_data):
         user = self.context["request"].user

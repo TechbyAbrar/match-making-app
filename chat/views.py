@@ -1,13 +1,14 @@
 import logging
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.shortcuts import get_object_or_404
 from django.core.cache import cache
 
 from rest_framework.exceptions import ValidationError
 from rest_framework import permissions, parsers, status
 from rest_framework.views import APIView
+from account.presence import touch_chat_presence
 
 from core.utils import ResponseHandler
 
@@ -35,11 +36,13 @@ class ThreadListCreateAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
+        touch_chat_presence(request.user)
         threads = ChatThread.objects.filter(Q(user_a=request.user) | Q(user_b=request.user))
         serializer = ThreadListSerializer(threads, many=True, context={"request": request})
         return ResponseHandler.success(data=serializer.data)
 
     def post(self, request):
+        touch_chat_presence(request.user)
         other_id = request.data.get("other_user_id")
         if not other_id:
             return ResponseHandler.bad_request(errors={"other_user_id": "This field is required."})
@@ -59,6 +62,7 @@ class MessageListCreateAPIView(APIView):
     pagination_class = MessagePagination
 
     def get(self, request):
+        touch_chat_presence(request.user)
         thread_id = request.query_params.get("thread")
         if not thread_id:
             return ResponseHandler.bad_request(errors={"thread": "Query parameter is required."})
@@ -82,6 +86,7 @@ class MessageListCreateAPIView(APIView):
         return ResponseHandler.success(data=serializer.data)
 
     def post(self, request):
+        touch_chat_presence(request.user)
         serializer = MessageSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         message = serializer.save()
@@ -108,14 +113,30 @@ class SocietyListCreateAPIView(APIView):
         parsers.JSONParser,
     )
 
+    # def get(self, request):
+    #     touch_chat_presence(request.user)
+    #     societies = Society.objects.filter(members__user=request.user).distinct()
+    #     return ResponseHandler.success(
+    #         data=SocietySerializer(societies, many=True).data
+    #     )
+    
     def get(self, request):
-        societies = Society.objects.filter(members__user=request.user).distinct()
+        touch_chat_presence(request.user)
+
+        societies = (
+            Society.objects
+            .filter(members__user=request.user)
+            .distinct()
+            .annotate(member_count=Count("members", distinct=True))
+        )
+
         return ResponseHandler.success(
-            data=SocietySerializer(societies, many=True).data
+            data=SocietySerializer(societies, many=True, context={"request": request}).data
         )
 
     @transaction.atomic
     def post(self, request):
+        touch_chat_presence(request.user)
         serializer = SocietySerializer(
             data=request.data,
             context={"request": request},
@@ -132,6 +153,7 @@ class SocietyAddMemberAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, society_id):
+        touch_chat_presence(request.user)
         user_id = request.data.get("user_id")
         if not user_id:
             return ResponseHandler.bad_request(errors={"user_id": "This field is required."})
@@ -155,6 +177,7 @@ class SocietyMessageListCreateAPIView(APIView):
     )
 
     def get(self, request, society_id):
+        touch_chat_presence(request.user)
         society = get_object_or_404(Society, pk=society_id)
 
         if not SocietyMember.objects.filter(society=society, user=request.user).exists():
@@ -172,6 +195,7 @@ class SocietyMessageListCreateAPIView(APIView):
 
     @transaction.atomic
     def post(self, request, society_id):
+        touch_chat_presence(request.user)
         society = get_object_or_404(Society, pk=society_id)
 
         member = SocietyMember.objects.filter(society=society, user=request.user).first()

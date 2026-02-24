@@ -342,6 +342,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "mutual_system.tasks.sync_redis_view_counts",
         "schedule": crontab(minute="*/10"),
     },
+    "mark-offline-every-15-min": {
+        "task": "account.tasks.mark_offline_task",
+        "schedule": crontab(minute="*/15"),
+    }
 }
 
 SITE_BASE_URL = env("SITE_BASE_URL", default="http://localhost:8000")
