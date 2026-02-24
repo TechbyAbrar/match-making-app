@@ -530,12 +530,91 @@ class UnlikeUserAPIView(APIView):
             return ResponseHandler.generic_error(exception=e)
 
 
+# class WhoLikedUserAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
+#     pagination_class = PageNumberPagination
+
+#     def get_cache_key(self, user_id: int, page: int, page_size: int) -> str:
+#         return f"who_liked:{user_id}:page:{page}:size:{page_size}"
+
+#     def get(self, request):
+#         user = request.user
+#         user_id = getattr(user, "user_id", None) or getattr(user, "id")
+
+#         paginator = self.pagination_class()
+
+#         # Resolve page params
+#         page_number = request.query_params.get(paginator.page_query_param, "1")
+#         page_size = paginator.get_page_size(request) or paginator.page_size or 20
+
+#         cache_key = self.get_cache_key(user_id, page_number, page_size)
+
+#         # Try cache
+#         try:
+#             cached_payload = cache.get(cache_key)
+#         except Exception as exc:
+#             logger.warning(
+#                 "Cache GET failed for who-liked",
+#                 extra={"user_id": user_id, "exc": str(exc)},
+#             )
+#             cached_payload = None
+
+#         if cached_payload:
+#             logger.info("who-liked cache hit", extra={"user_id": user_id})
+#             return ResponseHandler.success(
+#                 message=f"{cached_payload['pagination']['count']} users liked your profile.",
+#                 data=cached_payload["results"],
+#                 extra={"pagination": cached_payload["pagination"]},
+#             )
+
+#         # Query set
+#         try:
+#             qs = UserLikeService.who_liked_user(user_id)
+#         except Exception as exc:
+#             return ResponseHandler.generic_error(exception=exc)
+
+#         # Pagination
+#         page = paginator.paginate_queryset(qs, request, view=self)
+
+#         serialized = WhoLikedUserSerializer(
+#             page, many=True, context={"request": request}
+#         ).data
+
+#         # Count safely
+#         try:
+#             total_count = qs.count()
+#         except Exception:
+#             total_count = len(list(qs))
+
+#         pagination = {
+#             "count": total_count,
+#             "next": paginator.get_next_link(),
+#             "previous": paginator.get_previous_link(),
+#             "page": int(page_number),
+#             "page_size": page_size,
+#         }
+
+#         payload = {"results": serialized, "pagination": pagination}
+
+#         # Try caching response
+#         try:
+#             CACHE_TTL = 15 # seconds
+#             cache.set(cache_key, payload, CACHE_TTL)
+#         except Exception as exc:
+#             logger.warning("Cache SET failed", extra={"exc": str(exc)})
+
+#         return ResponseHandler.success(
+#             message=f"{total_count} users liked your profile.",
+#             data=serialized,
+#             extra={"pagination": pagination},
+#         )
+
 class WhoLikedUserAPIView(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = PageNumberPagination
 
-    def get_cache_key(self, user_id: int, page: int, page_size: int) -> str:
-        return f"who_liked:{user_id}:page:{page}:size:{page_size}"
+    def get_cache_key(self, user_id: int, page: int, page_size: int, radius: str) -> str:
+        return f"who_liked:{user_id}:r:{radius}:page:{page}:size:{page_size}"
 
     def get(self, request):
         user = request.user
@@ -543,48 +622,39 @@ class WhoLikedUserAPIView(APIView):
 
         paginator = self.pagination_class()
 
-        # Resolve page params
         page_number = request.query_params.get(paginator.page_query_param, "1")
         page_size = paginator.get_page_size(request) or paginator.page_size or 20
 
-        cache_key = self.get_cache_key(user_id, page_number, page_size)
+        # optional override (if frontend sends distance)
+        radius_param = request.query_params.get("distance")  # km
+        radius_km = int(radius_param) if radius_param and radius_param.isdigit() else None
 
-        # Try cache
+        cache_key = self.get_cache_key(user_id, page_number, page_size, radius_param or "default")
+
         try:
             cached_payload = cache.get(cache_key)
         except Exception as exc:
-            logger.warning(
-                "Cache GET failed for who-liked",
-                extra={"user_id": user_id, "exc": str(exc)},
-            )
+            logger.warning("Cache GET failed for who-liked", extra={"user_id": user_id, "exc": str(exc)})
             cached_payload = None
 
         if cached_payload:
-            logger.info("who-liked cache hit", extra={"user_id": user_id})
             return ResponseHandler.success(
                 message=f"{cached_payload['pagination']['count']} users liked your profile.",
                 data=cached_payload["results"],
                 extra={"pagination": cached_payload["pagination"]},
             )
 
-        # Query set
+        # ✅ PASS USER OBJECT (not user_id)
         try:
-            qs = UserLikeService.who_liked_user(user_id)
+            qs = UserLikeService.who_liked_user(user=user, radius_km=radius_km)
         except Exception as exc:
             return ResponseHandler.generic_error(exception=exc)
 
-        # Pagination
         page = paginator.paginate_queryset(qs, request, view=self)
 
-        serialized = WhoLikedUserSerializer(
-            page, many=True, context={"request": request}
-        ).data
+        serialized = WhoLikedUserSerializer(page, many=True, context={"request": request}).data
 
-        # Count safely
-        try:
-            total_count = qs.count()
-        except Exception:
-            total_count = len(list(qs))
+        total_count = qs.count()
 
         pagination = {
             "count": total_count,
@@ -596,10 +666,8 @@ class WhoLikedUserAPIView(APIView):
 
         payload = {"results": serialized, "pagination": pagination}
 
-        # Try caching response
         try:
-            CACHE_TTL = 15 # seconds
-            cache.set(cache_key, payload, CACHE_TTL)
+            cache.set(cache_key, payload, 5)
         except Exception as exc:
             logger.warning("Cache SET failed", extra={"exc": str(exc)})
 

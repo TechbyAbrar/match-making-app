@@ -414,7 +414,11 @@ class WhoLikedUserSerializer(serializers.ModelSerializer):
             return url
         return request.build_absolute_uri(url)
 
-
     def get_distance(self, obj):
-        return getattr(obj, "distance", None)
+        dm = getattr(obj, "distance_m", None)
+        if dm is None:
+            return None
+
+        # GeoDjango returns a Distance object
+        return round(float(dm.km), 1)  # km
     

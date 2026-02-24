@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    "django.contrib.gis",   # GeoDjango for geospatial features
     
     # third-party apps
     "rest_framework",
@@ -112,7 +113,8 @@ DATABASES = {
     'default': dj_database_url.parse(
         env('DATABASE_URL'),
         conn_max_age=600,
-        ssl_require=True
+        ssl_require=True,
+        engine="django.contrib.gis.db.backends.postgis",
     )
 }
 
@@ -343,3 +345,10 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 SITE_BASE_URL = env("SITE_BASE_URL", default="http://localhost:8000")
+
+
+
+
+# GDAL / GEOS (GeoDjango)
+GDAL_LIBRARY_PATH = "/lib/libgdal.so"
+GEOS_LIBRARY_PATH = "/lib/x86_64-linux-gnu/libgeos_c.so.1"

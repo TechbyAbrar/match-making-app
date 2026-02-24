@@ -9,6 +9,8 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.utils import timezone
 from django.core.validators import RegexValidator
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.contrib.gis.db import models as gis_models
+from django.contrib.gis.geos import Point
 
 class UserAuth(AbstractBaseUser, PermissionsMixin):
     class Meta:
@@ -115,7 +117,7 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
     
     #user preference radius (slider)
     distance = models.PositiveIntegerField(blank=True, null=True)  # in miles/km
-    
+    geo_location = gis_models.PointField(srid=4326, null=True, blank=True, db_index=True)
     
     is_subscribed = models.BooleanField(default=False)
     subscription_expiry = models.DateTimeField(blank=True, null=True)
@@ -198,6 +200,21 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
             "lat": float(self.latitude),
             "lng": float(self.longitude),
         }
+        
+    def save(self, *args, **kwargs):
+        lat = self.latitude
+        lng = self.longitude
+
+        if lat is not None and lng is not None:
+            new_point = Point(float(lng), float(lat), srid=4326)
+
+            # only update if changed (or geo_location is empty)
+            if self.geo_location is None or self.geo_location.x != new_point.x or self.geo_location.y != new_point.y:
+                self.geo_location = new_point
+        else:
+            self.geo_location = None
+
+        super().save(*args, **kwargs)
     
     
     
