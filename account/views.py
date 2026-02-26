@@ -29,7 +29,7 @@ from .serializers import (
     ForgetPasswordSerializer,
     VerifyForgetPasswordOTPSerializer,
     ResetPasswordSerializer,
-    UserSerializer, UserProfileUpdateSerializer, WhoLikedUserSerializer,
+    UserSerializer, UserProfileUpdateSerializer, WhoLikedUserSerializer, GoogleAuthSerializer
 )
 from account.utils import generate_tokens_for_user
 
@@ -757,3 +757,16 @@ class UserFilterAPIView(APIView):
 
         except Exception as e:
             return ResponseHandler.generic_error(exception=e)
+
+
+
+#google login view
+class GoogleLoginAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = GoogleAuthSerializer(data=request.data)
+        if serializer.is_valid():
+            data = serializer.save()
+            return Response(data, status=status.HTTP_200_OK)
+        return Response({"success": False, "message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)

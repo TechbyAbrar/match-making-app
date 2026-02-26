@@ -421,4 +421,78 @@ class WhoLikedUserSerializer(serializers.ModelSerializer):
 
         # GeoDjango returns a Distance object
         return round(float(dm.km), 1)  # km
-    
+
+# google serializer for google login
+from .utils import validate_google_token
+from django.utils.crypto import get_random_string
+class GoogleAuthSerializer(serializers.Serializer):
+    id_token = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
+    full_name = serializers.CharField(required=False)
+    google_id = serializers.CharField(required=False)
+    picture = serializers.URLField(required=False)  # matches incoming JSON
+
+    def validate(self, attrs):
+        if attrs.get("id_token"):
+            # Validate token from Google
+            google_data = validate_google_token(attrs["id_token"])
+            if not google_data or not google_data.get("email"):
+                raise serializers.ValidationError("Invalid or expired Google token.")
+        else:
+            if not attrs.get("email"):
+                raise serializers.ValidationError("Email is required if no id_token provided.")
+            google_data = {
+                "email": attrs.get("email"),
+                "name": attrs.get("full_name", ""),
+                "sub": attrs.get("google_id"),
+                "profile_pic": attrs.get("picture", ""),  # use correct key
+            }
+
+        attrs["google_data"] = google_data
+        return attrs
+
+    def create(self, validated_data):
+        google_data = validated_data["google_data"]
+
+        # Generate unique username
+        email_prefix = google_data["email"].split("@")[0][:8]
+        username = f"{email_prefix}{get_random_string(4)}"
+        while UserAuth.objects.filter(username=username).exists():
+            username = f"{email_prefix}{get_random_string(4)}"
+
+        # Get or create user
+        user, created = UserAuth.objects.get_or_create(
+            email=google_data["email"],
+            defaults={
+                "full_name": google_data.get("name", ""),
+                "username": username
+            }
+        )
+
+        if created:
+            user.set_unusable_password()
+            user.is_verified = True
+
+        # Always update Google profile picture
+        if google_data.get("profile_pic") and user.profile_pic_url != google_data["profile_pic"]:
+            user.profile_pic_url = google_data["profile_pic"]
+
+        # Optional: only update full_name if it’s empty
+        if not user.full_name and google_data.get("name"):
+            user.full_name = google_data["name"]
+
+        user.save()
+
+        # Generate JWT tokens
+        tokens = generate_tokens_for_user(user)
+
+        return {
+            "success": True,
+            "message": "User authenticated successfully",
+            "access": tokens["access"],
+            "refresh": tokens["refresh"],
+            "created": created,
+            "data": {
+                "user_profile": UserSerializer(user).data  # profile_pic will return correct URL
+            },
+        }

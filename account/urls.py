@@ -3,7 +3,7 @@ from .views import (
     RegisterAPIView, VerifyOTPAPIView, ResendVerifyOTPAPIView, LoginView, ForgetPasswordView, 
     VerifyForgetPasswordOTPView, ResetPasswordView, UserProfileUpdateAPIView, 
     UserProfileAPIView, UserProfileHardDeleteAPIView, PopImageListCreateAPIView, PopImageRetrieveUpdateDeleteAPIView,
-    GlobalFeedAPIView, UserDetailsProfileAPIView, LikeUserAPIView, UnlikeUserAPIView, WhoLikedUserAPIView, UserSearchAPIView, UserFilterAPIView)
+    GlobalFeedAPIView, UserDetailsProfileAPIView, LikeUserAPIView, UnlikeUserAPIView, WhoLikedUserAPIView, UserSearchAPIView, UserFilterAPIView, GoogleLoginAPIView)
 
 urlpatterns = [
     path("signup/", RegisterAPIView.as_view(), name="user-register"),
@@ -18,7 +18,7 @@ urlpatterns = [
     path("profile/update/", UserProfileUpdateAPIView.as_view(), name="profile-update"),
     # get profile
     path("profile/details/", UserProfileAPIView.as_view(), name="profile-get"),
-    # delte profile
+    # delete profile
     path("profile/delete/", UserProfileHardDeleteAPIView.as_view(), name="profile-delete"),
     
     # pop image urls
@@ -39,4 +39,7 @@ urlpatterns = [
     # search and filter
     path("users/search/", UserSearchAPIView.as_view(), name="user-search"),
     path("users/filter/", UserFilterAPIView.as_view(), name="user-filter"),
+    
+    #google auth
+    path('googleLogin/', GoogleLoginAPIView.as_view(), name='google-login'),
 ]
