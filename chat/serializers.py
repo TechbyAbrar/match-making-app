@@ -1,13 +1,27 @@
-from rest_framework import serializers
-from django.contrib.auth import get_user_model
-from .models import ChatThread, Message, MessageReaction, SocietyMember, SocietyMessage, Society
+# Standard library
 from collections import defaultdict
-from django.db.models import F, Window
-from django.db.models.functions import RowNumber, Random
-from rest_framework import serializers
-from django.core.cache import cache
-User = get_user_model()
 
+# Django
+from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from django.core.files.storage import default_storage
+from django.db.models import F, Window
+from django.db.models.functions import Random, RowNumber
+
+# DRF
+from rest_framework import serializers
+
+# Local apps
+from .models import (
+    ChatThread,
+    Message,
+    MessageReaction,
+    Society,
+    SocietyMember,
+    SocietyMessage,
+)
+
+User = get_user_model()
 class SimpleUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -82,27 +96,6 @@ class ThreadListSerializer(serializers.ModelSerializer):
 
 
 
-# society/serializers.py
-from rest_framework import serializers
-from django.contrib.auth import get_user_model
-from .models import Society, SocietyMember, SocietyMessage
-
-User = get_user_model()
-
-# class SocietySerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Society
-#         fields = ["id", "name", "image", "created_by", "created_at"]
-#         read_only_fields = ["id", "created_by", "created_at"]
-
-#     def create(self, validated_data):
-#         user = self.context["request"].user
-#         validated_data["created_by"] = user
-#         society = super().create(validated_data)
-#         SocietyMember.objects.create(society=society, user=user, is_admin=True)
-#         return society
-
-
 class SocietySerializer(serializers.ModelSerializer):
     member_count = serializers.IntegerField(read_only=True)
     random_member_images = serializers.SerializerMethodField()
@@ -153,12 +146,24 @@ class SocietySerializer(serializers.ModelSerializer):
             if not pic:
                 continue
 
-            # If stored as "/media/..", make absolute URL
-            pic_str = str(pic)
-            if request and pic_str.startswith("/"):
-                pic_str = request.build_absolute_uri(pic_str)
+            pic_str = str(pic).strip()
 
-            mp[row["society_id"]].append(pic_str)
+            # 1) If already absolute (CDN etc.), keep it
+            if pic_str.startswith("http://") or pic_str.startswith("https://"):
+                final_url = pic_str
+
+            else:
+                # 2) If starts with "/", it's already a URL-path like "/media/.."
+                if pic_str.startswith("/"):
+                    url_path = pic_str
+                else:
+                    # 3) If stored like "profile/x.png", convert to "/media/profile/x.png" (or storage URL)
+                    url_path = default_storage.url(pic_str)
+
+                # 4) Make absolute for Flutter
+                final_url = request.build_absolute_uri(url_path) if request else url_path
+
+            mp[row["society_id"]].append(final_url)
 
         self._cached_random_images_map = dict(mp)
         return self._cached_random_images_map
@@ -189,3 +194,4 @@ class SocietyMessageSerializer(serializers.ModelSerializer):
         model = SocietyMessage
         fields = ["id", "society", "sender", "content", "message_type", "attachment", "created_at"]
         read_only_fields = ["id", "sender", "created_at"]
+

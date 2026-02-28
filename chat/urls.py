@@ -10,4 +10,5 @@ urlpatterns = [
     path("societies/", SocietyListCreateAPIView.as_view()),
     path("societies/<int:society_id>/members/", SocietyAddMemberAPIView.as_view()),
     path("societies/<int:society_id>/messages/", SocietyMessageListCreateAPIView.as_view()),
+    
 ]

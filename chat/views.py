@@ -222,4 +222,4 @@ class SocietyMessageListCreateAPIView(APIView):
             data=SocietyMessageSerializer(msg).data
         )   
         
-        
+
