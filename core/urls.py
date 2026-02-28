@@ -28,6 +28,7 @@ urlpatterns = [
         path('mutual-system/', include('mutual_system.urls')),
         path('chat/', include('chat.urls')),
         path('subscription/', include('subscription.urls')),
+        path('notification/', include('notification.urls')),
     ])),
 ]
 
