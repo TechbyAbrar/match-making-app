@@ -357,3 +357,8 @@ SITE_BASE_URL = env("SITE_BASE_URL", default="http://localhost:8000")
 # GDAL / GEOS (GeoDjango)
 GDAL_LIBRARY_PATH = "/lib/libgdal.so"
 GEOS_LIBRARY_PATH = "/lib/x86_64-linux-gnu/libgeos_c.so.1"
+
+
+# one signal config (for push notifications)
+ONESIGNAL_APP_ID = "your-app-id"
+ONESIGNAL_REST_API_KEY = "your-rest-api-key"
