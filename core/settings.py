@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     'mutual_system',
     'chat',
     'subscription',
+    'notification',
 ]
 
 
