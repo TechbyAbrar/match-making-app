@@ -595,27 +595,39 @@ class AdminAggregatedReportsAPIView(APIView):
         paginator = AdminAggregatedReportsPagination()
         page = paginator.paginate_queryset(raw, request)
 
-        # Extract PKs of users
-        user_ids = [item["reported_user"] for item in page]
+        reported_user_ids = [item["reported_user"] for item in page]
+        reporter_ids = [item.get("last_reporter_id") for item in page if item.get("last_reporter_id")]
 
-        # FIX: use pk__in instead of id__in
-        users = User.objects.filter(pk__in=user_ids).in_bulk()
+        users = User.objects.filter(pk__in=set(reported_user_ids + reporter_ids)).in_bulk()
 
-        payload = [
-            {
+        payload = []
+        for item in page:
+            reported_user = users.get(item["reported_user"])
+            reporter = users.get(item.get("last_reporter_id"))
+
+            payload.append({
                 "reported_user_id": item["reported_user"],
                 "report_count": item["report_count"],
-                "username": getattr(users.get(item["reported_user"]), "username", None),
-                "email": getattr(users.get(item["reported_user"]), "email", None),
-            }
-            for item in page
-        ]
 
-        return ResponseHandler.paginated(
-            paginator=paginator,
-            data=payload
-        )
+                # reported user info
+                "username": getattr(reported_user, "username", None),
+                "email": getattr(reported_user, "email", None),
 
+                # ✅ latest report info
+                "last_report": {
+                    "report_id": item.get("last_report_id"),
+                    "reported_at": item.get("last_reported_at"),
+                    "reason": item.get("last_reason"),
+                    "comment": item.get("last_comment"),
+                    "reporter": {
+                        "user_id": getattr(reporter, "pk", None),
+                        "username": getattr(reporter, "username", None),
+                        "email": getattr(reporter, "email", None),
+                    } if reporter else None
+                }
+            })
+
+        return ResponseHandler.paginated(paginator=paginator, data=payload)
 
 
 

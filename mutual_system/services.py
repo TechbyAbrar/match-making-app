@@ -172,7 +172,8 @@ AGGREGATED_REPORTS_CACHE_TTL = 60  # seconds (adjust for your traffic/consistenc
 class ReportServiceError(Exception):
     pass
 
-
+# reports/services.py
+from django.db.models import Count, OuterRef, Subquery
 class ReportService:
     @staticmethod
     @transaction.atomic
@@ -213,22 +214,59 @@ class ReportService:
             raise ReportServiceError("Failed to create report") from exc
 
 
+    # @staticmethod
+    # def get_aggregated_reports(order_by="-report_count"):
+    #     # Try cache
+    #     cached = cache.get(AGGREGATED_REPORTS_CACHE_KEY)
+    #     if cached is not None:
+    #         return cached
+
+    #     qs = (
+    #         Report.objects
+    #         .filter(resolved=False)
+    #         .values("reported_user")
+    #         .annotate(report_count=Count("id"))
+    #         .order_by(order_by)
+    #     )
+
+    #     # Materialize to list of dicts (so cacheable easily)
+    #     result = list(qs)
+    #     try:
+    #         cache.set(AGGREGATED_REPORTS_CACHE_KEY, result, AGGREGATED_REPORTS_CACHE_TTL)
+    #     except Exception:
+    #         logger.exception("Failed to set aggregated reports cache.")
+
+    #     return result
+    
     @staticmethod
     def get_aggregated_reports(order_by="-report_count"):
-        # Try cache
         cached = cache.get(AGGREGATED_REPORTS_CACHE_KEY)
         if cached is not None:
             return cached
+
+        latest = (
+            Report.objects
+            .filter(resolved=False, reported_user=OuterRef("reported_user"))
+            .order_by("-created_at")
+        )
 
         qs = (
             Report.objects
             .filter(resolved=False)
             .values("reported_user")
-            .annotate(report_count=Count("id"))
+            .annotate(
+                report_count=Count("id"),
+
+                # ✅ latest report snapshot
+                last_report_id=Subquery(latest.values("id")[:1]),
+                last_reason=Subquery(latest.values("reason")[:1]),
+                last_comment=Subquery(latest.values("comment")[:1]),
+                last_reporter_id=Subquery(latest.values("reporter_id")[:1]),
+                last_reported_at=Subquery(latest.values("created_at")[:1]),
+            )
             .order_by(order_by)
         )
 
-        # Materialize to list of dicts (so cacheable easily)
         result = list(qs)
         try:
             cache.set(AGGREGATED_REPORTS_CACHE_KEY, result, AGGREGATED_REPORTS_CACHE_TTL)
