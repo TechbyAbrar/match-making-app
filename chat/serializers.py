@@ -187,6 +187,47 @@ class SocietyMemberSerializer(serializers.ModelSerializer):
         fields = ["id", "user", "is_admin", "joined_at"]
 
 
+
+class SocietyAddMembersSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField(min_value=1, required=False)
+    user_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False,
+        allow_empty=False,
+    )
+
+    def validate(self, attrs):
+        user_id = attrs.get("user_id")
+        user_ids = attrs.get("user_ids")
+
+        if not user_id and not user_ids:
+            raise serializers.ValidationError(
+                {"user_id": "Provide user_id or user_ids.", "user_ids": "Provide user_id or user_ids."}
+            )
+
+        if user_id and user_ids:
+            raise serializers.ValidationError(
+                {"detail": "Send either user_id or user_ids, not both."}
+            )
+
+        # Normalize to a single list: user_ids
+        if user_id:
+            ids = [user_id]
+        else:
+            ids = user_ids
+
+        # Deduplicate while keeping order
+        ids = list(dict.fromkeys(ids))
+
+        MAX_BULK_ADD = 50
+        if len(ids) > MAX_BULK_ADD:
+            raise serializers.ValidationError({"user_ids": f"Maximum {MAX_BULK_ADD} users can be added at a time."})
+
+        attrs["normalized_user_ids"] = ids
+        return attrs
+
+
+
 class SocietyMessageSerializer(serializers.ModelSerializer):
     sender = SimpleUserSerializer(read_only=True)
 
