@@ -1,0 +1,50 @@
+create_and_send_notification(
+    ntype=Notification.Type.CHAT_MESSAGE,
+    title="New message",
+    body=f"{sender_name}: {text_preview}",
+    recipients=[receiver],
+    data={
+        "type": "chat_message",
+        "route": "/chat",
+        "conversation_id": str(conversation_id),
+        "message_id": str(message_id),
+        "sender_id": str(sender_id),
+    },
+    actor_id=sender_id,
+    entity_id=message_id,
+)
+
+Incoming call
+
+create_and_send_notification(
+    ntype=Notification.Type.CALL_INCOMING,
+    title="Incoming call",
+    body=f"{caller_name} is calling you",
+    recipients=[callee],
+    data={
+        "type": "call_incoming",
+        "route": "/call/incoming",
+        "call_id": str(call_id),
+        "caller_id": str(caller_id),
+        "call_kind": "audio",  # or "video"
+    },
+    actor_id=caller_id,
+    entity_id=call_id,
+)
+
+New story
+
+create_and_send_notification(
+    ntype=Notification.Type.STORY_NEW,
+    title="New story",
+    body=f"{poster_name} posted a new story",
+    recipients=followers,
+    data={
+        "type": "story_new",
+        "route": "/story",
+        "story_id": str(story_id),
+        "poster_id": str(poster_id),
+    },
+    actor_id=poster_id,
+    entity_id=story_id,
+)
