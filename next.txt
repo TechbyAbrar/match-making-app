@@ -1,3 +1,5 @@
+Notification app> setting not configured yet
+
 create_and_send_notification(
     ntype=Notification.Type.CHAT_MESSAGE,
     title="New message",
