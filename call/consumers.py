@@ -1,3 +1,5 @@
+# call/consumers.py
+from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
@@ -5,30 +7,33 @@ from django.utils import timezone
 from .models import Call
 from .presence import set_online, is_in_call, set_in_call, clear_in_call
 
+
 class CallConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
-        user = self.scope["user"]
-        if user.is_anonymous:
+        user = self.scope.get("user")
+        if not user or user.is_anonymous:
             await self.close(code=4401)
             return
 
         self.user = user
-        self.user_group = f"user_{user.id}"
+        self.user_id = user.pk  # ✅ works even if your PK field name is user_id
+        self.user_group = f"user_{self.user_id}"
 
         await self.channel_layer.group_add(self.user_group, self.channel_name)
         await self.accept()
 
-        # mark online (refresh TTL)
-        set_online(user.id)
+        # ✅ Redis is sync → wrap in sync_to_async in async consumer
+        await sync_to_async(set_online)(self.user_id)
 
-        await self.send_json({"type": "ws_connected", "user_id": user.id})
+        await self.send_json({"type": "ws_connected", "user_id": self.user_id})
 
     async def disconnect(self, code):
         if hasattr(self, "user_group"):
             await self.channel_layer.group_discard(self.user_group, self.channel_name)
 
     async def receive_json(self, content, **kwargs):
-        set_online(self.user.id)  # keep alive
+        # keep alive
+        await sync_to_async(set_online)(self.user_id)
 
         msg_type = content.get("type")
 
@@ -56,18 +61,18 @@ class CallConsumer(AsyncJsonWebsocketConsumer):
 
         target_user_id = int(target_user_id)
 
-        # fast busy check
-        if is_in_call(target_user_id):
+        # fast busy check (Redis)
+        if await sync_to_async(is_in_call)(target_user_id):
             await self.set_status(call_id, Call.Status.BUSY, "receiver_busy")
             await self.send_json({"type": "busy", "call_id": call_id})
             return
 
         call = await self.get_call(call_id)
-        if not call or call.caller_id != self.user.id:
+        if not call or call.caller_id != self.user_id:
             await self.send_json({"type": "error", "detail": "Invalid call or not caller"})
             return
 
-        # notify receiver
+        # notify receiver (user group)
         await self.channel_layer.group_send(
             f"user_{target_user_id}",
             {
@@ -78,11 +83,10 @@ class CallConsumer(AsyncJsonWebsocketConsumer):
                     "from_user_id": call.caller_id,
                     "channel": call.channel,
                     "call_type": call.call_type,
-                }
-            }
+                },
+            },
         )
 
-        # optional: also confirm to caller
         await self.send_json({"type": "invite_sent", "call_id": str(call.id)})
 
     async def on_accept(self, data):
@@ -95,24 +99,24 @@ class CallConsumer(AsyncJsonWebsocketConsumer):
             return
 
         call = await self.get_call(call_id)
-        if not call or call.receiver_id != self.user.id:
+        if not call or call.receiver_id != self.user_id:
             await self.send_json({"type": "error", "detail": "Invalid call or not receiver"})
             return
 
-        # if receiver already in another call
-        if is_in_call(self.user.id):
+        # receiver already in another call?
+        if await sync_to_async(is_in_call)(self.user_id):
             await self.set_status(call_id, Call.Status.BUSY, "receiver_busy")
             await self.send_json({"type": "busy", "call_id": call_id})
             return
 
-        ok = await self.accept_call(call_id)
+        ok = await self.accept_call(call_id, receiver_id=self.user_id)
         if not ok:
             await self.send_json({"type": "error", "detail": "Cannot accept (maybe not ringing)"})
             return
 
-        # mark both in-call
-        set_in_call(call.caller_id, str(call.id))
-        set_in_call(call.receiver_id, str(call.id))
+        # mark both in-call (Redis)
+        await sync_to_async(set_in_call)(call.caller_id, str(call.id))
+        await sync_to_async(set_in_call)(call.receiver_id, str(call.id))
 
         # notify caller
         await self.channel_layer.group_send(
@@ -123,8 +127,8 @@ class CallConsumer(AsyncJsonWebsocketConsumer):
                     "type": "call_accepted",
                     "call_id": str(call.id),
                     "channel": call.channel,
-                }
-            }
+                },
+            },
         )
 
         await self.send_json({"type": "accepted", "call_id": str(call.id), "channel": call.channel})
@@ -136,7 +140,7 @@ class CallConsumer(AsyncJsonWebsocketConsumer):
             return
 
         call = await self.get_call(call_id)
-        if not call or call.receiver_id != self.user.id:
+        if not call or call.receiver_id != self.user_id:
             await self.send_json({"type": "error", "detail": "Invalid call or not receiver"})
             return
 
@@ -144,7 +148,7 @@ class CallConsumer(AsyncJsonWebsocketConsumer):
 
         await self.channel_layer.group_send(
             f"user_{call.caller_id}",
-            {"type": "push_event", "payload": {"type": "call_rejected", "call_id": str(call.id)}}
+            {"type": "push_event", "payload": {"type": "call_rejected", "call_id": str(call.id)}},
         )
 
         await self.send_json({"type": "rejected", "call_id": str(call.id)})
@@ -164,25 +168,23 @@ class CallConsumer(AsyncJsonWebsocketConsumer):
         if not call:
             return
 
-        # only caller or receiver can end
-        if self.user.id not in (call.caller_id, call.receiver_id):
+        if self.user_id not in (call.caller_id, call.receiver_id):
             await self.send_json({"type": "error", "detail": "Forbidden"})
             return
 
-        # if still ringing and caller ends -> missed
         if call.status == Call.Status.RINGING and reason == "timeout":
             await self.set_status(call_id, Call.Status.MISSED, "timeout")
         else:
             await self.end_call(call_id, reason)
 
         # clear in-call flags
-        clear_in_call(call.caller_id)
-        clear_in_call(call.receiver_id)
+        await sync_to_async(clear_in_call)(call.caller_id)
+        await sync_to_async(clear_in_call)(call.receiver_id)
 
-        other_user_id = call.receiver_id if self.user.id == call.caller_id else call.caller_id
+        other_user_id = call.receiver_id if self.user_id == call.caller_id else call.caller_id
         await self.channel_layer.group_send(
             f"user_{other_user_id}",
-            {"type": "push_event", "payload": {"type": "call_ended", "call_id": str(call.id), "reason": reason}}
+            {"type": "push_event", "payload": {"type": "call_ended", "call_id": str(call.id), "reason": reason}},
         )
 
         await self.send_json({"type": "ended", "call_id": str(call.id), "reason": reason})
@@ -196,8 +198,9 @@ class CallConsumer(AsyncJsonWebsocketConsumer):
         return Call.objects.filter(id=call_id).first()
 
     @database_sync_to_async
-    def accept_call(self, call_id) -> bool:
-        call = Call.objects.filter(id=call_id).first()
+    def accept_call(self, call_id, receiver_id: int) -> bool:
+        # ✅ ensure only the intended receiver can accept
+        call = Call.objects.filter(id=call_id, receiver_id=receiver_id).first()
         if not call or call.status != Call.Status.RINGING:
             return False
         call.status = Call.Status.ACCEPTED
