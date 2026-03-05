@@ -40,7 +40,6 @@ ALLOWED_HOSTS = [
 ]
 
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -64,6 +63,7 @@ INSTALLED_APPS = [
     'chat',
     'subscription',
     'notification',
+    'call',
 ]
 
 
@@ -103,8 +103,8 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'core.wsgi.application'
-
+# WSGI_APPLICATION = 'core.wsgi.application'
+ASGI_APPLICATION = "core.asgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -362,3 +362,8 @@ GEOS_LIBRARY_PATH = "/lib/x86_64-linux-gnu/libgeos_c.so.1"
 # one signal config (for push notifications)
 ONESIGNAL_APP_ID = "your-app-id"
 ONESIGNAL_REST_API_KEY = "your-rest-api-key"
+
+
+# Agora settings for audio and video calls
+AGORA_APP_ID = env("AGORA_APP_ID")
+AGORA_APP_CERTIFICATE = env("AGORA_APP_CERTIFICATE")
