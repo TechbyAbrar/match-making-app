@@ -1,5 +1,8 @@
 import uuid
 from django.utils import timezone
+from django.db import transaction
+from django.db import models
+
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -8,12 +11,10 @@ from .models import Call
 from .token_service import generate_rtc_token
 from .presence import is_in_call
 
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def start_call(request):
-    """
-    body: { "receiver_id": 123, "call_type": "video" }
-    """
     receiver_id = request.data.get("receiver_id")
     call_type = request.data.get("call_type", "video")
 
@@ -22,19 +23,28 @@ def start_call(request):
 
     receiver_id = int(receiver_id)
 
-    # Busy check (fast)
-    if is_in_call(receiver_id):
-        return Response({"detail": "Receiver is busy"}, status=409)
+    with transaction.atomic():
 
-    channel = f"call_{uuid.uuid4().hex}"
+        # lock any active call rows
+        active_call = Call.objects.select_for_update().filter(
+            status__in=[Call.Status.RINGING, Call.Status.ACCEPTED],
+        ).filter(
+            models.Q(caller_id=receiver_id) |
+            models.Q(receiver_id=receiver_id)
+        ).first()
 
-    call = Call.objects.create(
-        channel=channel,
-        caller=request.user,
-        receiver_id=receiver_id,
-        call_type=call_type,
-        status=Call.Status.RINGING,
-    )
+        if active_call:
+            return Response({"detail": "Receiver already in a call"}, status=409)
+
+        channel = f"call_{uuid.uuid4().hex}"
+
+        call = Call.objects.create(
+            channel=channel,
+            caller=request.user,
+            receiver_id=receiver_id,
+            call_type=call_type,
+            status=Call.Status.RINGING,
+        )
 
     return Response({
         "call_id": str(call.id),
