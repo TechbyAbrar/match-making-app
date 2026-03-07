@@ -1,8 +1,9 @@
+# notification/services.py
 import requests
 from django.conf import settings
 
 from .models import Notification, NotificationDelivery
-from .tasks import send_delivery_task
+# from .tasks import send_delivery_task
 
 ONESIGNAL_API_URL = "https://onesignal.com/api/v1/notifications"
 
@@ -45,6 +46,7 @@ def send_to_player_ids(*, title: str, body: str, player_ids: list[str], data: di
 
 
 def create_and_send_notification(*, ntype: str, title: str, body: str, recipients, data: dict, actor_id=None, entity_id=None):
+    from .tasks import send_delivery_task
     notif = Notification.objects.create(
         type=ntype,
         title=title,

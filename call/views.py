@@ -12,6 +12,18 @@ from .token_service import generate_rtc_token
 from .presence import is_in_call
 
 
+from datetime import timedelta
+import uuid
+
+from django.db import transaction, models
+from django.utils import timezone
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from .models import Call
+
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def start_call(request):
@@ -23,9 +35,23 @@ def start_call(request):
 
     receiver_id = int(receiver_id)
 
-    with transaction.atomic():
+    # ✅ avoid self-call
+    if receiver_id == request.user.pk:
+        return Response({"detail": "You cannot call yourself"}, status=400)
 
-        # lock any active call rows
+    with transaction.atomic():
+        # ✅ auto-expire old ringing calls so users don't stay "busy" forever
+        timeout_at = timezone.now() - timedelta(seconds=25)  # tune as needed
+        Call.objects.select_for_update().filter(
+            status=Call.Status.RINGING,
+            created_at__lt=timeout_at,
+        ).update(
+            status=Call.Status.MISSED,
+            ended_at=timezone.now(),
+            end_reason="timeout",
+        )
+
+        # ✅ block if receiver is still in an active call
         active_call = Call.objects.select_for_update().filter(
             status__in=[Call.Status.RINGING, Call.Status.ACCEPTED],
         ).filter(
