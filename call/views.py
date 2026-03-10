@@ -90,10 +90,14 @@ def start_call(request):
         )
 
     return Response({
+        "success": True,
+        "message": "Call initiated",
+        "data": {
         "call_id": str(call.id),
         "channel": call.channel,
         "call_type": call.call_type,
         "status": call.status,
+        }
     }, status=201)
 
 
@@ -119,8 +123,12 @@ def agora_token(request):
     token = generate_rtc_token(channel, uid)
 
     return Response({
-        "token": token,
-        "uid": uid,
+        "success": True,
+        "message": "Token generated successfully",
+        "data": {
+            "token": token,
+            "uid": uid,
+        }
     })
     
     
@@ -159,11 +167,15 @@ def accept_call(request, call_id):
         set_in_call(call.receiver_id, str(call.id))
 
     return Response({
-        "call_id": str(call.id),
-        "status": call.status,
-        "channel": call.channel,
-        "call_type": call.call_type,
-        "accepted_at": call.accepted_at,
+        "success": True,
+        "message": "Call accepted",
+        "data": {
+            "call_id": str(call.id),
+            "status": call.status,
+            "channel": call.channel,
+            "call_type": call.call_type,
+            "accepted_at": call.accepted_at,
+        }
     }, status=200)
 
 
@@ -194,10 +206,14 @@ def reject_call(request, call_id):
         clear_in_call(call.receiver_id)
 
     return Response({
-        "call_id": str(call.id),
-        "status": call.status,
-        "end_reason": call.end_reason,
-        "ended_at": call.ended_at,
+        "success": True,
+        "message": "Call rejected",
+        "data": {
+            "call_id": str(call.id),
+            "status": call.status,
+            "end_reason": call.end_reason,
+            "ended_at": call.ended_at,
+        }
     }, status=200)
 
 
@@ -240,10 +256,14 @@ def end_call(request, call_id):
         clear_in_call(call.receiver_id)
 
     return Response({
-        "call_id": str(call.id),
-        "status": call.status,
-        "end_reason": call.end_reason,
-        "ended_at": call.ended_at,
+        "success": True,
+        "message": "Call ended",
+        "data": {
+            "call_id": str(call.id),
+            "status": call.status,
+            "end_reason": call.end_reason,
+            "ended_at": call.ended_at,
+        }
     }, status=200)
 
 
@@ -259,14 +279,18 @@ def call_status(request, call_id):
         return Response({"detail": "Forbidden"}, status=403)
 
     return Response({
-        "call_id": str(call.id),
-        "channel": call.channel,
-        "call_type": call.call_type,
-        "status": call.status,
-        "caller_id": call.caller_id,
-        "receiver_id": call.receiver_id,
-        "created_at": call.created_at,
-        "accepted_at": call.accepted_at,
-        "ended_at": call.ended_at,
-        "end_reason": call.end_reason,
+        "success": True,
+        "message": "Call status retrieved",
+        "data": {
+            "call_id": str(call.id),
+            "channel": call.channel,
+            "call_type": call.call_type,
+            "status": call.status,
+            "caller_id": call.caller_id,
+            "receiver_id": call.receiver_id,
+            "created_at": call.created_at,
+            "accepted_at": call.accepted_at,
+            "ended_at": call.ended_at,
+            "end_reason": call.end_reason,
+        }
     }, status=200)
