@@ -25,7 +25,6 @@ gunicorn core.asgi:application \
   --log-level info
 
 
-
 # run redis -> another terminal
 redis-server --port 6379
 

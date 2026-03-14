@@ -36,6 +36,8 @@ class UserSerializer(serializers.ModelSerializer):
     age = serializers.ReadOnlyField()  # uses @property age
     profile_link = serializers.ReadOnlyField()
     is_liked_profile = serializers.SerializerMethodField()   # ✅ add this
+    geo = serializers.ReadOnlyField()
+
 
     class Meta:
         model = UserAuth
@@ -72,6 +74,7 @@ class UserSerializer(serializers.ModelSerializer):
             "province",
             "location",
             "distance",
+            "geo",
 
             "is_verified",
             "is_active",
@@ -100,6 +103,7 @@ class UserSerializer(serializers.ModelSerializer):
             "updated_at",
             "profile_link",
             "age",
+            "geo",
         ]
 
     def get_profile_pic_url(self, obj):
@@ -377,6 +381,8 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
             "province",
             "location",
             "distance",
+            "latitude",
+            "longitude",
         ]
 
     def validate_username(self, value):
