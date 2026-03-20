@@ -234,18 +234,30 @@ class CallConsumer(AsyncJsonWebsocketConsumer):
             return None
 
         return {
-            "call_id": str(call.id),
-            "channel": call.channel,
-            "call_type": call.call_type,
-            "status": call.status,
-            "caller_id": call.caller_id,
-            "receiver_id": call.receiver_id,
-            "created_at": call.created_at.isoformat() if call.created_at else None,
-            "accepted_at": call.accepted_at.isoformat() if call.accepted_at else None,
-            "ended_at": call.ended_at.isoformat() if call.ended_at else None,
-            "end_reason": call.end_reason,
-        }
+        "call_id": str(call.id),
+        "channel": call.channel,
+        "call_type": call.call_type,
+        "status": call.status,
+        "caller_id": call.caller_id,
+        "receiver_id": call.receiver_id,
+
+        "caller_full_name": call.caller.full_name,
+        "caller_profile_pic": call.caller.profile_pic.url if call.caller.profile_pic else None,
+
+        "receiver_full_name": call.receiver.full_name,
+        "receiver_profile_pic": call.receiver.profile_pic.url if call.receiver.profile_pic else None,
+
+        "created_at": call.created_at.isoformat() if call.created_at else None,
+        "accepted_at": call.accepted_at.isoformat() if call.accepted_at else None,
+        "ended_at": call.ended_at.isoformat() if call.ended_at else None,
+        "end_reason": call.end_reason,
+    }
 
     @database_sync_to_async
     def get_call(self, call_id):
-        return Call.objects.filter(id=call_id).first()
+        return (
+            Call.objects
+            .select_related("caller", "receiver")
+            .filter(id=call_id)
+            .first()
+        )
