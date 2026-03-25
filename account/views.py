@@ -770,3 +770,4 @@ class GoogleLoginAPIView(APIView):
             data = serializer.save()
             return Response(data, status=status.HTTP_200_OK)
         return Response({"success": False, "message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    
