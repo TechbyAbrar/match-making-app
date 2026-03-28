@@ -1,40 +1,56 @@
-from decimal import Decimal
-from django.db import models
+from __future__ import annotations
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db import models
 
 
-class Subscription(models.Model):
-    class Meta:
-        verbose_name_plural = "Subscriptions"
-        db_table = "subscription"
-        ordering = ["-created_at"]
-
-    user = models.ForeignKey(
+class UserSubscription(models.Model):
+    user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="subscriptions",
+        related_name="subscription",
     )
 
-    # RevenueCat identifiers
-    app_user_id = models.CharField(max_length=255)                  # event.app_user_id
-    event_id = models.CharField(max_length=100, null=True, blank=True, unique=True)  # event.id (if present)
+    source = models.CharField(max_length=50, db_index=True)
+    platform = models.CharField(max_length=20, db_index=True)
 
-    # Event info
-    event_type = models.CharField(max_length=50)                    # INITIAL_PURCHASE / RENEWAL / etc.
-    product_id = models.CharField(max_length=255, null=True, blank=True)
-    entitlement_id = models.CharField(max_length=255, null=True, blank=True)
-    store = models.CharField(max_length=50, null=True, blank=True)
+    app_user_id = models.CharField(max_length=255, blank=True, default="")
+    original_app_user_id = models.CharField(max_length=255, blank=True, default="")
 
-    # What you need for earnings
-    plan_name = models.CharField(max_length=100, default="Premium Plan")
-    currency = models.CharField(max_length=10, default="USD")
-    plan_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    entitlement_id = models.CharField(max_length=255, blank=True, default="", db_index=True)
+    is_blink_pro_active = models.BooleanField(default=False, db_index=True)
 
-    # Dates from RevenueCat
-    purchased_at = models.DateTimeField(null=True, blank=True)
-    expires_at = models.DateTimeField(null=True, blank=True)
+    active_subscriptions = models.JSONField(default=list, blank=True)
+    all_purchased_product_identifiers = models.JSONField(default=list, blank=True)
+    all_purchase_dates = models.JSONField(default=dict, blank=True)
+    all_expiration_dates = models.JSONField(default=dict, blank=True)
 
+    latest_expiration_date = models.DateTimeField(null=True, blank=True, db_index=True)
+    request_date = models.DateTimeField(null=True, blank=True)
+    management_url = models.URLField(blank=True, default="", max_length=1000)
+
+    entitlements = models.JSONField(default=dict, blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
+
+    synced_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return f"{self.user} - {self.plan_name} - {self.plan_price} {self.currency}"
+    class Meta:
+        db_table = "user_subscriptions"
+
+    def __str__(self) -> str:
+        return f"user={self.user_id} active={self.is_blink_pro_active}"
+
+    def clean(self) -> None:
+        self.source = (self.source or "").strip().lower()
+        self.platform = (self.platform or "").strip().lower()
+        self.app_user_id = (self.app_user_id or "").strip()
+        self.original_app_user_id = (self.original_app_user_id or "").strip()
+        self.entitlement_id = (self.entitlement_id or "").strip()
+
+        if self.latest_expiration_date and self.request_date:
+            if self.latest_expiration_date.year < 2000:
+                raise ValidationError(
+                    {"latest_expiration_date": "Invalid latest_expiration_date."}
+                )
