@@ -33,9 +33,6 @@ class Device(models.Model):
 
 
 class Notification(models.Model):
-    """
-    A single "event" that can be delivered to multiple recipients.
-    """
     class Type(models.TextChoices):
         CHAT_MESSAGE = "chat_message", "Chat message"
         CALL_INCOMING = "call_incoming", "Incoming call"
@@ -61,9 +58,6 @@ class Notification(models.Model):
 
 
 class NotificationDelivery(models.Model):
-    """
-    Per-recipient delivery state.
-    """
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
         SENT = "sent", "Sent"

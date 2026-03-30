@@ -122,6 +122,7 @@ class UserAuth(AbstractBaseUser, PermissionsMixin):
     is_subscribed = models.BooleanField(default=False)
     subscription_expiry = models.DateTimeField(blank=True, null=True)
     
+    
     is_online = models.BooleanField(default=False)
     last_login = models.DateTimeField(blank=True, null=True)
     last_activity = models.DateTimeField(blank=True, null=True, db_index=True)

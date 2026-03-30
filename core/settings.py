@@ -367,3 +367,9 @@ ONESIGNAL_REST_API_KEY = "your-rest-api-key"
 # Agora settings for audio and video calls
 AGORA_APP_ID = env("AGORA_APP_ID")
 AGORA_APP_CERTIFICATE = env("AGORA_APP_CERTIFICATE")
+
+
+
+# one signal config (for push notifications)
+ONESIGNAL_APP_ID = "your-app-id-here"
+ONESIGNAL_REST_API_KEY = "your-rest-api-key-here"
