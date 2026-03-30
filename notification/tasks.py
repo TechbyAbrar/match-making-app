@@ -1,12 +1,26 @@
-# notification/tasks.py
 from celery import shared_task
+from celery.utils.log import get_task_logger
 from django.utils import timezone
+
 from .models import NotificationDelivery, Device
 from .services import send_to_player_ids, OneSignalError
 
-@shared_task(bind=True, max_retries=5, default_retry_delay=10)
+logger = get_task_logger(__name__)
+
+
+@shared_task(bind=True, max_retries=5)
 def send_delivery_task(self, delivery_id: str):
-    delivery = NotificationDelivery.objects.select_related("notification", "recipient").get(id=delivery_id)
+    # FIX: guard against missing delivery — never retry on DoesNotExist
+    try:
+        delivery = (
+            NotificationDelivery.objects
+            .select_related("notification", "recipient")
+            .get(id=delivery_id)
+        )
+    except NotificationDelivery.DoesNotExist:
+        logger.error(f"send_delivery_task: delivery {delivery_id} not found. Skipping.")
+        return
+
     notif = delivery.notification
 
     player_ids = list(
@@ -32,8 +46,11 @@ def send_delivery_task(self, delivery_id: str):
         delivery.onesignal_notification_id = resp.get("id", "")
         delivery.sent_at = timezone.now()
         delivery.save(update_fields=["status", "onesignal_notification_id", "sent_at"])
+
     except OneSignalError as e:
         delivery.status = NotificationDelivery.Status.FAILED
         delivery.error = str(e)
         delivery.save(update_fields=["status", "error"])
-        raise self.retry(exc=e)
+        logger.warning(f"OneSignal failed for delivery {delivery_id}: {e}. Retrying.")
+        # FIX: exponential backoff — 60s, 120s, 240s, 480s, 960s
+        raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
