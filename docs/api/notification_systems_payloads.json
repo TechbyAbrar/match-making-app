@@ -1,0 +1,778 @@
+{
+  "info": {
+    "name": "Blink — Notification System",
+    "_postman_id": "blink-notifications-v1",
+    "description": "Production-grade test collection for the Django + OneSignal notification system. Set {{base_url}} and {{token}} in your environment before running.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",     "value": "http://localhost:8000",           "type": "string" },
+    { "key": "token",        "value": "YOUR_JWT_OR_TOKEN_HERE",          "type": "string" },
+    { "key": "player_id",    "value": "aabbccdd-1234-5678-abcd-000000000001", "type": "string" },
+    { "key": "delivery_id",  "value": "",                                "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1 — Device Management",
+      "item": [
+        {
+          "name": "1.1 Register device — Android (happy path)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"onesignal_player_id\": \"{{player_id}}\",\n  \"platform\": \"android\",\n  \"app_version\": \"2.4.1\",\n  \"device_model\": \"Samsung Galaxy S24\",\n  \"os_version\": \"14\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/devices/register/", "host": ["{{base_url}}"], "path": ["api","notifications","devices","register",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('ok:true', () => pm.expect(pm.response.json().ok).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.2 Register device — iOS",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"onesignal_player_id\": \"aabbccdd-1234-5678-abcd-000000000002\",\n  \"platform\": \"ios\",\n  \"app_version\": \"2.4.1\",\n  \"device_model\": \"iPhone 15 Pro\",\n  \"os_version\": \"17.4\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/devices/register/", "host": ["{{base_url}}"], "path": ["api","notifications","devices","register",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('ok:true', () => pm.expect(pm.response.json().ok).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.3 Register device — Web",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"onesignal_player_id\": \"aabbccdd-1234-5678-abcd-000000000003\",\n  \"platform\": \"web\",\n  \"app_version\": \"\",\n  \"device_model\": \"\",\n  \"os_version\": \"\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/devices/register/", "host": ["{{base_url}}"], "path": ["api","notifications","devices","register",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.4 Register device — re-register same player_id (upsert, must not duplicate)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"onesignal_player_id\": \"{{player_id}}\",\n  \"platform\": \"android\",\n  \"app_version\": \"2.5.0\",\n  \"device_model\": \"Samsung Galaxy S24\",\n  \"os_version\": \"14\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/devices/register/", "host": ["{{base_url}}"], "path": ["api","notifications","devices","register",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 — upsert, no duplicate', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.5 Register device — missing platform (should 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"onesignal_player_id\": \"aabbccdd-1234-5678-abcd-000000000099\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/devices/register/", "host": ["{{base_url}}"], "path": ["api","notifications","devices","register",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 — platform required', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.6 Register device — invalid platform value (should 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"onesignal_player_id\": \"aabbccdd-1234-5678-abcd-000000000099\",\n  \"platform\": \"windows\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/devices/register/", "host": ["{{base_url}}"], "path": ["api","notifications","devices","register",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 — invalid platform', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.7 Register device — unauthenticated (should 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"onesignal_player_id\": \"{{player_id}}\",\n  \"platform\": \"android\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/devices/register/", "host": ["{{base_url}}"], "path": ["api","notifications","devices","register",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401 — no auth', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.8 Deregister device — happy path",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"onesignal_player_id\": \"{{player_id}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/devices/deregister/", "host": ["{{base_url}}"], "path": ["api","notifications","devices","deregister",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('ok:true', () => pm.expect(pm.response.json().ok).to.be.true);",
+                  "pm.test('deactivated field present', () => pm.expect(pm.response.json()).to.have.property('deactivated'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.9 Deregister device — empty player_id (should 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"onesignal_player_id\": \"\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/devices/deregister/", "host": ["{{base_url}}"], "path": ["api","notifications","devices","deregister",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 400 — empty player_id', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.10 Deregister device — non-existent player_id (graceful 200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"onesignal_player_id\": \"does-not-exist-0000-0000-0000-000000000000\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/devices/deregister/", "host": ["{{base_url}}"], "path": ["api","notifications","devices","deregister",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 — graceful no-op', () => pm.response.to.have.status(200));",
+                  "pm.test('deactivated is 0', () => pm.expect(pm.response.json().deactivated).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 — In-App Inbox",
+      "item": [
+        {
+          "name": "2.1 List notifications — default page_size 30",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/?page_size=30",
+              "host": ["{{base_url}}"],
+              "path": ["api","notifications",""],
+              "query": [{ "key": "page_size", "value": "30" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+                  "const body = pm.response.json();",
+                  "if (body.length > 0) {",
+                  "  const item = body[0];",
+                  "  pm.test('Item has id',         () => pm.expect(item).to.have.property('id'));",
+                  "  pm.test('Item has type',        () => pm.expect(item).to.have.property('type'));",
+                  "  pm.test('Item has title',       () => pm.expect(item).to.have.property('title'));",
+                  "  pm.test('Item has body',        () => pm.expect(item).to.have.property('body'));",
+                  "  pm.test('Item has data',        () => pm.expect(item).to.have.property('data'));",
+                  "  pm.test('Item has is_read',     () => pm.expect(item).to.have.property('is_read'));",
+                  "  pm.test('Item has status',      () => pm.expect(item).to.have.property('status'));",
+                  "  pm.test('Item has created_at',  () => pm.expect(item).to.have.property('created_at'));",
+                  "  pm.collectionVariables.set('delivery_id', item.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.2 List notifications — small page_size 5",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/?page_size=5",
+              "host": ["{{base_url}}"],
+              "path": ["api","notifications",""],
+              "query": [{ "key": "page_size", "value": "5" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Max 5 items returned', () => pm.expect(pm.response.json().length).to.be.at.most(5));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.3 List notifications — page_size above 100 cap (must return ≤100)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/?page_size=9999",
+              "host": ["{{base_url}}"],
+              "path": ["api","notifications",""],
+              "query": [{ "key": "page_size", "value": "9999" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Capped at 100', () => pm.expect(pm.response.json().length).to.be.at.most(100));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.4 List notifications — unauthenticated (should 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/notifications/", "host": ["{{base_url}}"], "path": ["api","notifications",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3 — Unread Count",
+      "item": [
+        {
+          "name": "3.1 Get unread count — authenticated",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/notifications/unread-count/", "host": ["{{base_url}}"], "path": ["api","notifications","unread-count",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has unread_count field', () => pm.expect(pm.response.json()).to.have.property('unread_count'));",
+                  "pm.test('unread_count is a number', () => pm.expect(pm.response.json().unread_count).to.be.a('number'));",
+                  "pm.test('unread_count >= 0', () => pm.expect(pm.response.json().unread_count).to.be.at.least(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.2 Get unread count — unauthenticated (should 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/notifications/unread-count/", "host": ["{{base_url}}"], "path": ["api","notifications","unread-count",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 — Mark Read",
+      "item": [
+        {
+          "name": "4.1 Mark single notification read — happy path",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": {
+              "raw": "{{base_url}}/api/notifications/{{delivery_id}}/read/",
+              "host": ["{{base_url}}"],
+              "path": ["api","notifications","{{delivery_id}}","read",""]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('ok:true', () => pm.expect(pm.response.json().ok).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.2 Mark same notification read again — idempotent (should still 200)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": {
+              "raw": "{{base_url}}/api/notifications/{{delivery_id}}/read/",
+              "host": ["{{base_url}}"],
+              "path": ["api","notifications","{{delivery_id}}","read",""]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 — idempotent', () => pm.response.to.have.status(200));",
+                  "pm.test('ok:true', () => pm.expect(pm.response.json().ok).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.3 Mark read — wrong UUID (should 404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": {
+              "raw": "{{base_url}}/api/notifications/00000000-0000-0000-0000-000000000000/read/",
+              "host": ["{{base_url}}"],
+              "path": ["api","notifications","00000000-0000-0000-0000-000000000000","read",""]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.4 Mark read — invalid UUID format (should 404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": {
+              "raw": "{{base_url}}/api/notifications/not-a-uuid/read/",
+              "host": ["{{base_url}}"],
+              "path": ["api","notifications","not-a-uuid","read",""]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.5 Mark all read — happy path",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{base_url}}/api/notifications/read-all/", "host": ["{{base_url}}"], "path": ["api","notifications","read-all",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('ok:true', () => pm.expect(pm.response.json().ok).to.be.true);",
+                  "pm.test('marked field present', () => pm.expect(pm.response.json()).to.have.property('marked'));",
+                  "pm.test('marked is a number', () => pm.expect(pm.response.json().marked).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.6 Mark all read — when already all read (marked should be 0)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{base_url}}/api/notifications/read-all/", "host": ["{{base_url}}"], "path": ["api","notifications","read-all",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('marked is 0 — already read', () => pm.expect(pm.response.json().marked).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.7 Verify unread count is 0 after read-all",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/notifications/unread-count/", "host": ["{{base_url}}"], "path": ["api","notifications","unread-count",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('unread_count is 0 after read-all', () => pm.expect(pm.response.json().unread_count).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5 — Notification Preferences",
+      "item": [
+        {
+          "name": "5.1 Get preferences — first fetch (auto-creates with all defaults true)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{base_url}}/api/notifications/preferences/", "host": ["{{base_url}}"], "path": ["api","notifications","preferences",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('push_enabled present',  () => pm.expect(b).to.have.property('push_enabled'));",
+                  "pm.test('chat_message present',  () => pm.expect(b).to.have.property('chat_message'));",
+                  "pm.test('call_incoming present', () => pm.expect(b).to.have.property('call_incoming'));",
+                  "pm.test('call_missed present',   () => pm.expect(b).to.have.property('call_missed'));",
+                  "pm.test('video_invite present',  () => pm.expect(b).to.have.property('video_invite'));",
+                  "pm.test('story_new present',     () => pm.expect(b).to.have.property('story_new'));",
+                  "pm.test('generic present',       () => pm.expect(b).to.have.property('generic'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.2 Update — disable all push globally",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"push_enabled\": false\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/preferences/", "host": ["{{base_url}}"], "path": ["api","notifications","preferences",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('push_enabled is false', () => pm.expect(pm.response.json().push_enabled).to.be.false);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.3 Update — re-enable push, disable only chat and story",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"push_enabled\": true,\n  \"chat_message\": false,\n  \"story_new\": false\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/preferences/", "host": ["{{base_url}}"], "path": ["api","notifications","preferences",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('push_enabled true',    () => pm.expect(b.push_enabled).to.be.true);",
+                  "pm.test('chat_message false',   () => pm.expect(b.chat_message).to.be.false);",
+                  "pm.test('story_new false',      () => pm.expect(b.story_new).to.be.false);",
+                  "pm.test('call_incoming true',   () => pm.expect(b.call_incoming).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.4 Update — restore all to true",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"push_enabled\": true,\n  \"chat_message\": true,\n  \"call_incoming\": true,\n  \"call_missed\": true,\n  \"video_invite\": true,\n  \"story_new\": true,\n  \"generic\": true\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/preferences/", "host": ["{{base_url}}"], "path": ["api","notifications","preferences",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "['push_enabled','chat_message','call_incoming','call_missed','video_invite','story_new','generic'].forEach(k => {",
+                  "  pm.test(k + ' is true', () => pm.expect(b[k]).to.be.true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.5 Update — partial update (only one field, rest unchanged)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"video_invite\": false\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/notifications/preferences/", "host": ["{{base_url}}"], "path": ["api","notifications","preferences",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('video_invite is false', () => pm.expect(pm.response.json().video_invite).to.be.false);",
+                  "pm.test('push_enabled still true', () => pm.expect(pm.response.json().push_enabled).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.6 Get preferences — unauthenticated (should 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/notifications/preferences/", "host": ["{{base_url}}"], "path": ["api","notifications","preferences",""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
