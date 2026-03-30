@@ -359,9 +359,6 @@ GDAL_LIBRARY_PATH = "/lib/libgdal.so"
 GEOS_LIBRARY_PATH = "/lib/x86_64-linux-gnu/libgeos_c.so.1"
 
 
-# one signal config (for push notifications)
-ONESIGNAL_APP_ID = "your-app-id"
-ONESIGNAL_REST_API_KEY = "your-rest-api-key"
 
 
 # Agora settings for audio and video calls
@@ -370,6 +367,7 @@ AGORA_APP_CERTIFICATE = env("AGORA_APP_CERTIFICATE")
 
 
 
-# one signal config (for push notifications)
-ONESIGNAL_APP_ID = "your-app-id-here"
-ONESIGNAL_REST_API_KEY = "your-rest-api-key-here"
+# --- OneSignal ---
+ONESIGNAL_APP_ID         = env("ONESIGNAL_APP_ID")           # from OneSignal dashboard
+ONESIGNAL_REST_API_KEY   = env("ONESIGNAL_REST_API_KEY")     # REST API key (not client key)
+ONESIGNAL_ANDROID_CHANNEL_ID = env("ONESIGNAL_ANDROID_CHANNEL_ID", default=None)  # optional
